@@ -266,7 +266,7 @@ function crearLogoDefecto() {
   return c.toDataURL('image/png');
 }
 const LOGO_DEFECTO = crearLogoDefecto();
-const logoSrc = () => S.config.logo_url || LOGO_DEFECTO;
+const logoSrc = () => S.config.logo_url || 'icon-192.png';
 
 function aplicarMarca() {
   document.querySelectorAll('.logo-img').forEach(i => i.src = logoSrc());
@@ -1055,7 +1055,7 @@ async function facturaCanvas(f) {
 
 /* Evidencias de la orden asociada a esta factura. Drive sigue privado. */
 async function paginasEvidenciasFactura(f) {
-  const ordenes=S.ordenes.filter(o=>o.factura_id===f.id);
+  const ordenes=S.ordenes.filter(o=>String(o.factura_id||'')===String(f.id));
   if(!ordenes.length)return [];
   const evidencias=S.evidencias.filter(e=>ordenes.some(o=>o.id===e.orden_id));
   const paginas=[];
@@ -1108,6 +1108,15 @@ async function abrirFactura(f, alCerrar) {
       titulo.textContent='Evidencias fotográficas ('+FACT_FOTOS_PAGINAS.length+')';
       p.appendChild(titulo);
       FACT_FOTOS_PAGINAS.forEach(c=>p.appendChild(c));
+    } else {
+      const vinculada=S.ordenes.some(o=>String(o.factura_id||'')===String(f.id));
+      const advertencia=document.createElement('p');
+      advertencia.className='mut';
+      advertencia.style.padding='12px';
+      advertencia.textContent=vinculada
+        ? 'Esta orden no tiene fotos de evidencia guardadas.'
+        : 'Esta factura no está vinculada a una orden de trabajo. Las evidencias se agregan automáticamente solo a facturas generadas desde Órdenes.';
+      p.appendChild(advertencia);
     }
     $('#b-pdf').disabled = false;
     $('#b-png').disabled = false;
@@ -1173,6 +1182,7 @@ function vConfig() {
         <button type="button" class="btn red sm" onclick="quitarLogo()">Quitar logo</button>
       </div>
     </div>
+    <p class="mut">El logo que guardes aquí aparecerá también en el PDF y PNG de las facturas. Usa preferiblemente un PNG cuadrado con fondo transparente.</p>
     <label>Nombre del taller</label><input id="cf-nombre" value="${esc(c.nombre_taller)}">
     <div class="gr dos mt">
       <div><label>Teléfono del taller</label><input id="cf-tel" inputmode="tel" value="${esc(c.telefono)}"></div>
