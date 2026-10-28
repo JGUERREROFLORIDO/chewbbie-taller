@@ -236,6 +236,8 @@ let qCli = '', qHis = '', HLIM = 50, CFGLOGO;
 const ABIERTAS = new Set();
 let CV = null, FACT_ACTUAL = null, MODAL_CB = null;
 let FACT_FOTOS_PAGINAS = [];
+let MODO_SEL_CLIENTES=false, MODO_SEL_FACTURAS=false;
+const CLIENTES_SEL=new Set(), FACTURAS_SEL=new Set();
 
 const configurado = /^https:\/\/script\.google\.com\/.+/.test(APPS_URL);
 
@@ -482,6 +484,8 @@ const motosDe = id => S.motos.filter(m => m.cliente_id === id);
 function vClientes() {
   return `<div class="cab"><h1>Clientes y motos</h1><button class="btn" onclick="abrirOrden()">+ Recibir motocicleta</button></div>
   <p class="mut">Consulta las órdenes, trabajos y facturas de cada motocicleta. Las órdenes sin factura también se muestran.</p>
+  <div class="bt mt"><button class="btn sec sm" onclick="modoClientes()">${MODO_SEL_CLIENTES?'Cancelar selección':'Seleccionar varios clientes'}</button>
+  ${MODO_SEL_CLIENTES?`<button class="btn red sm" onclick="borrarClientesSeleccionados()">Eliminar seleccionados (${CLIENTES_SEL.size})</button>`:''}</div>
   <input id="q-cli" placeholder="Buscar por placa, nombre o teléfono" value="${esc(qCli)}" oninput="qCli=this.value;pintarClientes()">
   <div class="mt" id="lista-cli"></div>`;
 }
@@ -516,7 +520,9 @@ function pintarClientes() {
 }
 function tarjetaCliente(c) {
   const ms=motosDe(c.id);
+  const protegido=ms.some(m=>S.ordenes.some(o=>limpiarPlaca(o.placa)===limpiarPlaca(m.placa)));
   return `<div class="card">
+    ${MODO_SEL_CLIENTES?`<label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" style="width:20px;height:20px" ${CLIENTES_SEL.has(c.id)?'checked':''} ${protegido?'disabled title="Tiene órdenes vinculadas"':''} onchange="seleccionarCliente('${c.id}',this.checked)"> Seleccionar cliente ${protegido?'(tiene órdenes, protegido)':''}</label>`:''}
     <div class="cab2">
       <div><div class="nom">${esc(c.nombre)}</div><div class="mut">${esc(c.telefono)||'Sin teléfono'}</div></div>
       <div class="bt">
@@ -840,9 +846,32 @@ async function guardarFactura() {
   }
 }
 
+function modoClientes(){MODO_SEL_CLIENTES=!MODO_SEL_CLIENTES;CLIENTES_SEL.clear();render();}
+function seleccionarCliente(id,on){if(on)CLIENTES_SEL.add(id);else CLIENTES_SEL.delete(id);render();}
+async function borrarClientesSeleccionados(){
+ const ids=[...CLIENTES_SEL];
+ if(!ids.length)return toast('Selecciona clientes sin órdenes vinculadas.');
+ const peligrosos=ids.some(id=>motosDe(id).some(m=>S.ordenes.some(o=>limpiarPlaca(o.placa)===limpiarPlaca(m.placa))));
+ if(peligrosos)return toast('No se pueden eliminar clientes que tengan órdenes.');
+ if(!confirm(`¿Eliminar ${ids.length} clientes seleccionados y sus motos? Las facturas existentes se conservarán.`))return;
+ try{for(const id of ids)await escribir('clienteEliminar',{id});CLIENTES_SEL.clear();MODO_SEL_CLIENTES=false;render();toast('Clientes eliminados.');}
+ catch(e){toast('Se interrumpió la eliminación: '+msgErr(e));render();}
+}
+function modoFacturas(){MODO_SEL_FACTURAS=!MODO_SEL_FACTURAS;FACTURAS_SEL.clear();render();}
+function seleccionarFactura(id,on){if(on)FACTURAS_SEL.add(id);else FACTURAS_SEL.delete(id);render();}
+async function borrarFacturasSeleccionadas(){
+ const ids=[...FACTURAS_SEL];
+ if(!ids.length)return toast('Selecciona facturas sin órdenes vinculadas.');
+ if(ids.some(id=>S.ordenes.some(o=>o.factura_id===id)))return toast('No se pueden eliminar facturas vinculadas a órdenes.');
+ if(!confirm(`¿Eliminar definitivamente ${ids.length} facturas? Esta acción no se puede deshacer.`))return;
+ try{for(const id of ids)await escribir('facturaEliminar',{id});FACTURAS_SEL.clear();MODO_SEL_FACTURAS=false;render();toast('Facturas eliminadas.');}
+ catch(e){toast('Se interrumpió la eliminación: '+msgErr(e));render();}
+}
 /* ===================== HISTORIAL ===================== */
 function vHistorial() {
   return `<h1>Historial de facturas</h1>
+  <div class="bt"><button class="btn sec sm" onclick="modoFacturas()">${MODO_SEL_FACTURAS?'Cancelar selección':'Seleccionar varias facturas'}</button>
+  ${MODO_SEL_FACTURAS?`<button class="btn red sm" onclick="borrarFacturasSeleccionadas()">Eliminar seleccionadas (${FACTURAS_SEL.size})</button>`:''}</div>
   <input id="q-his" placeholder="Buscar por placa o cliente" value="${esc(qHis)}" oninput="qHis=this.value;HLIM=50;pintarHistorial()">
   <div class="mt" id="his-res"></div>`;
 }
@@ -860,6 +889,7 @@ function pintarHistorial() {
   } else {
     h += vis.map(f => `<div class="card hcard">
       <div>
+        ${MODO_SEL_FACTURAS?`<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" style="width:20px;height:20px" ${FACTURAS_SEL.has(f.id)?'checked':''} ${S.ordenes.some(o=>o.factura_id===f.id)?'disabled title="Factura vinculada a una orden"':''} onchange="seleccionarFactura('${f.id}',this.checked)"> Seleccionar ${S.ordenes.some(o=>o.factura_id===f.id)?'(vinculada a orden, protegida)':''}</label>`:''}
         <div><b>#${num4(f.numero)}</b> <span class="placa sm">${esc(f.placa)}</span></div>
         <div class="mut">${fechaCorta(f.fecha)} · ${esc(f.cliente_nombre)} · ${esc(f.marca)} ${esc(f.modelo)}</div>
         <div class="mut">${esc((f.trabajos || []).map(x => x.descripcion).join(', ').slice(0, 90))}</div>
@@ -1058,37 +1088,49 @@ async function paginasEvidenciasFactura(f) {
   const ordenes=S.ordenes.filter(o=>String(o.factura_id||'')===String(f.id));
   if(!ordenes.length)return [];
   const evidencias=S.evidencias.filter(e=>ordenes.some(o=>o.id===e.orden_id));
+  if(!evidencias.length)return [];
+  const fotos=[];
+  for(const evidencia of evidencias){
+    const r=await api('fotoVer',{id:evidencia.id});
+    const img=await cargarImg(r.imagen);
+    if(!img)throw new Error('No se pudo leer la evidencia '+(evidencia.nombre||evidencia.id));
+    fotos.push({img,etapa:evidencia.etapa||'Evidencia'});
+  }
+  const W=800, E=2;
+  // dibujar() devuelve la última posición del contenido + espacio de seguridad.
+  const imgLogo=await cargarImg(logoSrc());
+  const medida=document.createElement('canvas').getContext('2d');
+  const ultimo=dibujar(medida,f,imgLogo,W,5000)-110;
+  const H=CV.height/E;
+  const inicio=Math.max(ultimo+22,580);
+  const disponible=H-83-inicio;
+  const celdaH=172, nfilas=Math.max(0,Math.floor(disponible/celdaH));
+  const caben=Math.min(fotos.length,nfilas*2,6);
+  function miniatura(x,item,left,top,w=342,h=136) {
+    x.fillStyle='#f5f3ff';x.fillRect(left,top,w,h);
+    const im=item.img, ratio=Math.min((w-8)/im.width,(h-8)/im.height);
+    const iw=im.width*ratio, ih=im.height*ratio;
+    x.drawImage(im,left+(w-iw)/2,top+(h-ih)/2,iw,ih);
+    x.fillStyle='#5b21b6';x.font='bold 13px sans-serif';x.textAlign='left';
+    x.fillText(item.etapa.slice(0,30),left,top+h+17);
+  }
+  if(caben){
+    const x=CV.getContext('2d');
+    x.save();x.scale(E,E);
+    x.fillStyle='#6d28d9';x.font='bold 16px sans-serif';x.textAlign='left';
+    x.fillText('EVIDENCIAS FOTOGRÁFICAS',42,inicio-5);
+    for(let i=0;i<caben;i++)miniatura(x,fotos[i],42+(i%2)*366,inicio+12+Math.floor(i/2)*celdaH);
+    x.restore();
+  }
+  // Solo si no caben en la factura, usar páginas adicionales.
   const paginas=[];
-  const porPagina=4; // Cuatro fotos pequeñas en una sola hoja, dos columnas por dos filas.
-  for(let inicio=0; inicio<evidencias.length; inicio+=porPagina){
-    const grupo=evidencias.slice(inicio,inicio+porPagina);
+  for(let n=caben;n<fotos.length;n+=6) {
     const c=document.createElement('canvas');c.width=800;c.height=1131;
-    const x=c.getContext('2d');
-    x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
-    x.fillStyle='#6d28d9';x.fillRect(0,0,800,104);
-    x.fillStyle='#fff';x.font='bold 25px sans-serif';x.fillText('EVIDENCIAS FOTOGRÁFICAS',40,50);
-    x.font='15px sans-serif';x.fillText('Factura #'+num4(f.numero)+' · Placa '+f.placa,40,78);
-    for(let j=0;j<grupo.length;j++){
-      const evidencia=grupo[j];
-      const r=await api('fotoVer',{id:evidencia.id});
-      const img=await cargarImg(r.imagen);
-      if(!img)throw new Error('No se pudo cargar la evidencia '+(evidencia.nombre||evidencia.id));
-      const col=j%2,fila=Math.floor(j/2);
-      const left=40+col*368,top=132+fila*470,boxW=344,boxH=386;
-      x.fillStyle='#f5f3ff';x.fillRect(left,top,boxW,boxH);
-      const maxW=boxW-20,maxH=boxH-18;
-      const factor=Math.min(maxW/img.width,maxH/img.height);
-      const iw=img.width*factor,ih=img.height*factor;
-      x.drawImage(img,left+(boxW-iw)/2,top+(boxH-ih)/2,iw,ih);
-      x.fillStyle='#1e1b2e';x.font='bold 16px sans-serif';
-      x.fillText(String(evidencia.etapa||'Evidencia').slice(0,30),left,top+boxH+25);
-      x.fillStyle='#6b7280';x.font='12px sans-serif';
-      const nombre=String(evidencia.nombre||'Fotografía');
-      x.fillText(nombre.length>45?nombre.slice(0,42)+'...':nombre,left,top+boxH+45);
-    }
-    x.fillStyle='#6d28d9';x.fillRect(0,1100,800,31);
-    x.fillStyle='#fff';x.font='12px sans-serif';
-    x.fillText('Evidencias · Hoja '+(Math.floor(inicio/porPagina)+1)+' de '+Math.ceil(evidencias.length/porPagina),40,1120);
+    const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,1131);
+    x.fillStyle='#6d28d9';x.fillRect(0,0,800,105);
+    x.fillStyle='#fff';x.font='bold 24px sans-serif';x.fillText('EVIDENCIAS FOTOGRÁFICAS',40,50);
+    x.font='15px sans-serif';x.fillText('Factura #'+num4(f.numero)+' · '+f.placa,40,79);
+    fotos.slice(n,n+6).forEach((item,i)=>miniatura(x,item,42+(i%2)*366,140+Math.floor(i/2)*314,342,255));
     paginas.push(c);
   }
   return paginas;
@@ -1117,7 +1159,7 @@ async function abrirFactura(f, alCerrar) {
       titulo.textContent='Evidencias fotográficas ('+FACT_FOTOS_PAGINAS.length+')';
       p.appendChild(titulo);
       FACT_FOTOS_PAGINAS.forEach(c=>p.appendChild(c));
-    } else {
+    } else if(!S.evidencias.some(e=>S.ordenes.some(o=>o.id===e.orden_id && String(o.factura_id||'')===String(f.id)))) {
       const vinculada=S.ordenes.some(o=>String(o.factura_id||'')===String(f.id));
       const advertencia=document.createElement('p');
       advertencia.className='mut';
@@ -1336,7 +1378,7 @@ function pintarOrdenes() {
   const filtro=QO.toLowerCase();
   const items=S.ordenes.filter(o=>(o.placa+' '+o.cliente_nombre).toLowerCase().includes(filtro));
   box.innerHTML=items.length?items.map(o=>`<div class="card cab2"><div style="display:flex;gap:10px;align-items:flex-start">
-    ${MODO_ELIMINAR_ORDENES?`<input type="checkbox" aria-label="Seleccionar orden ${esc(o.placa)}" style="width:22px;height:22px;flex:none" ${ORDENES_SELECCIONADAS.has(o.id)?'checked':''} ${o.factura_id?'disabled title="No puedes borrar órdenes facturadas"':''} onchange="seleccionarOrden('${o.id}',this.checked)">`:''}
+    ${MODO_ELIMINAR_ORDENES?`<input type="checkbox" aria-label="Seleccionar orden ${esc(o.placa)}" style="width:22px;height:22px;flex:none" ${ORDENES_SELECCIONADAS.has(o.id)?'checked':''} ${o.factura_id?'disabled title="Esta orden ya tiene una factura y está protegida"':''} onchange="seleccionarOrden('${o.id}',this.checked)">`:''}
     <div><span class="placa">${esc(o.placa)}</span> <b>${esc(o.marca)} ${esc(o.modelo)}</b><div class="mut">${esc(o.cliente_nombre)} · ${fechaCorta(o.ingreso)} · ${esc(o.estado)}</div>
     <div class="mut">${esc(o.motivo||'Sin motivo registrado')}</div></div></div>
     <div class="bt">
