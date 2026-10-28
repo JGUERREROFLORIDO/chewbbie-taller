@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -956,7 +957,7 @@ function envolver(x, texto, max) {
   return lineas.length ? lineas : [''];
 }
 
-function dibujar(x, f, img, W, H) {
+function dibujar(x, f, img, W, H, fotos = []) {
   const cfg = S.config;
   const FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
   const set = (size, peso, color) => { x.font = `${peso} ${size}px ${FONT}`; x.fillStyle = color; };
@@ -1051,6 +1052,32 @@ function dibujar(x, f, img, W, H) {
   x.textAlign = 'right'; set(26, '800', '#ffffff'); x.fillText(pesos(f.total), 736, y + 42);
   y += 64;
 
+  // Evidencias inmediatamente después del TOTAL, en el MISMO flujo.
+  // El cálculo de altura y el dibujo usan exactamente estas posiciones.
+  if (fotos.length) {
+    y += 38;
+    x.textAlign = 'left';
+    set(16, '700', '#6d28d9');
+    x.fillText('EVIDENCIAS FOTOGRÁFICAS', 40, y);
+    y += 18;
+    const altoFoto = 146, pasoFila = 174;
+    fotos.forEach((foto, i) => {
+      const left = 40 + (i % 2) * 368;
+      const top = y + Math.floor(i / 2) * pasoFila;
+      const ancho = 344;
+      x.fillStyle = '#f5f3ff';
+      x.fillRect(left, top, ancho, altoFoto);
+      const imagen = foto.img;
+      const factor = Math.min((ancho - 12) / imagen.width, (altoFoto - 12) / imagen.height);
+      const iw = imagen.width * factor, ih = imagen.height * factor;
+      x.drawImage(imagen, left + (ancho - iw) / 2, top + (altoFoto - ih) / 2, iw, ih);
+      x.textAlign = 'left';
+      set(13, '700', '#5b21b6');
+      x.fillText(String(foto.etapa || 'Evidencia').slice(0, 30), left, top + altoFoto + 17);
+    });
+    y += Math.ceil(fotos.length / 2) * pasoFila;
+  }
+
   // Pie
   x.fillStyle = '#f5f3ff';
   x.fillRect(0, H - 70, W, 70);
@@ -1063,64 +1090,31 @@ function dibujar(x, f, img, W, H) {
 
 async function facturaCanvas(f) {
   const img = await cargarImg(logoSrc());
-  const W = 800, E = 2;
+  const fotos = [];
+  const ordenesVinculadas = S.ordenes.filter(o => String(o.factura_id || '') === String(f.id));
+  const evidenciasVinculadas = S.evidencias.filter(e => ordenesVinculadas.some(o => o.id === e.orden_id));
+  for (const evidencia of evidenciasVinculadas) {
+    const respuesta = await api('fotoVer', {id:evidencia.id});
+    const fotoImg = await cargarImg(respuesta.imagen);
+    if (!fotoImg) throw new Error('No se pudo cargar la fotografía ' + (evidencia.nombre || evidencia.id));
+    fotos.push({img:fotoImg, etapa:evidencia.etapa || 'Evidencia'});
+  }
+  const W = 800, escala = 2;
   const medida = document.createElement('canvas').getContext('2d');
-  const H = Math.max(1131, Math.ceil(dibujar(medida, f, img, W, 5000)));
+  const alturaNecesaria = Math.ceil(dibujar(medida, f, img, W, 5000, fotos));
+  const H = Math.max(1131, alturaNecesaria);
   const c = document.createElement('canvas');
-  c.width = W * E;
-  c.height = H * E;
+  c.width = W * escala;
+  c.height = H * escala;
   const x = c.getContext('2d');
-  x.scale(E, E);
-  dibujar(x, f, img, W, H);
+  x.scale(escala, escala);
+  dibujar(x, f, img, W, H, fotos);
   return c;
 }
 
-
-/* Evidencias de la orden asociada a esta factura. Drive sigue privado. */
-async function paginasEvidenciasFactura(f) {
-  const ordenes = S.ordenes.filter(o => String(o.factura_id || '') === String(f.id));
-  const evidencias = S.evidencias.filter(e => ordenes.some(o => o.id === e.orden_id));
-  if (!evidencias.length) return [];
-  const fotos = [];
-  for (const evidencia of evidencias) {
-    const respuesta = await api('fotoVer', {id:evidencia.id});
-    const img = await cargarImg(respuesta.imagen);
-    if (!img) throw new Error('No se pudo cargar la foto '+(evidencia.nombre||evidencia.id));
-    fotos.push({img, etapa:evidencia.etapa || 'Evidencia'});
-  }
-  // La altura del documento se adapta a las fotos: no se crea una segunda página.
-  // Se obtiene la posición REAL del final del total, no la del pie de página.
-  const W=800, escala=2;
-  const logo=await cargarImg(logoSrc());
-  const medicion=document.createElement('canvas').getContext('2d');
-  const finTotal=dibujar(medicion,f,logo,W,5000)-110;
-  const inicioFotos=finTotal+40;
-  const altoFoto=152, saltoFila=184;
-  const filas=Math.ceil(fotos.length/2);
-  const finFotos=inicioFotos+30+filas*saltoFila;
-  const H=Math.max(1131,Math.ceil(finFotos+93));
-  const nuevo=document.createElement('canvas');
-  nuevo.width=W*escala; nuevo.height=H*escala;
-  const x=nuevo.getContext('2d');
-  x.scale(escala,escala);
-  // dibujar coloca el pie de página en la nueva posición final.
-  dibujar(x,f,logo,W,H);
-  x.textAlign='left';x.fillStyle='#6d28d9';x.font='bold 17px sans-serif';
-  x.fillText('EVIDENCIAS FOTOGRÁFICAS',40,inicioFotos);
-  fotos.forEach((item,i)=>{
-    const left=40+(i%2)*368,top=inicioFotos+24+Math.floor(i/2)*saltoFila;
-    const ancho=344,alto=altoFoto;
-    x.fillStyle='#f5f3ff';x.fillRect(left,top,ancho,alto);
-    const factor=Math.min((ancho-12)/item.img.width,(alto-12)/item.img.height);
-    const iw=item.img.width*factor,ih=item.img.height*factor;
-    x.drawImage(item.img,left+(ancho-iw)/2,top+(alto-ih)/2,iw,ih);
-    x.textAlign='left';x.fillStyle='#5b21b6';x.font='bold 13px sans-serif';
-    x.fillText(String(item.etapa).slice(0,30),left,top+alto+17);
-  });
-  CV=nuevo;
-  // No hay páginas de anexos: todas las fotos quedan debajo del total.
-  return [];
-}
+// Las fotos ya se incorporan directamente en la misma factura,
+// de modo que no quedan anexos duplicados ni páginas fotográficas sueltas.
+async function paginasEvidenciasFactura(f) { return []; }
 async function abrirFactura(f, alCerrar) {
   FACT_ACTUAL = f;
   CV = null;
