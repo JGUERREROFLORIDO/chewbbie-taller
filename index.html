@@ -11,7 +11,6 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{--p:#6d28d9;--pd:#5b21b6;--pl:#f5f3ff;--pb:#ddd6fe;--tx:#1e1b2e;--mut:#6b7280;--ok:#15803d;--err:#dc2626}
@@ -154,12 +153,12 @@ input:disabled{background:#f3f4f6;color:#6b7280}
 </head>
 <body>
 
-<!-- Avisos de configuración / error -->
+<!-- Avisos de configuración / carga / error -->
 <div id="aviso-pantalla" class="pantalla hidden"></div>
 
 <!-- Acceso -->
 <div id="login" class="login hidden">
-  <form onsubmit="return entrar(event)">
+  <form onsubmit="entrar(event);return false">
     <img class="logo-img" alt="Logo">
     <h1>Chewbbie Taller</h1>
     <p class="mut">Acceso privado</p>
@@ -192,13 +191,10 @@ input:disabled{background:#f3f4f6;color:#6b7280}
 
 <script>
 /* =====================================================
-   CONEXIÓN CON SUPABASE
-   Pega aquí tus dos claves (se explica en el siguiente paso).
-   La clave "anon" es pública por diseño: la seguridad real
-   la dan las políticas (RLS) de la base de datos.
+   CONEXIÓN CON GOOGLE APPS SCRIPT
+   Pega aquí la URL de tu aplicación web (termina en /exec).
    ===================================================== */
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const APPS_URL = 'https://script.google.com/macros/s/AKfycbzX00Wbi410RKx_TQbW7QQXE92wxOd5HBeKeG_EoXV-ucdGEi030O52ywf1_O68NE0QGA/exec';
 
 /* ===================== Utilidades ===================== */
 const $ = (s, r = document) => r.querySelector(s);
@@ -211,7 +207,7 @@ const fechaLarga = iso => { if (!iso) return ''; const [y, m, d] = iso.split('-'
 const limpiarPlaca = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const sumar = (l, k = 'precio') => (l || []).reduce((s, x) => s + (Number(x[k]) || 0), 0);
 const pos = v => Math.max(0, Math.round(Number(v) || 0));
-const msgErr = e => (e && e.code === '23505') ? 'Esa placa ya está registrada. Actualiza la página e intenta de nuevo.' : ((e && e.message) || 'Ocurrió un error.');
+const msgErr = e => (e && e.message) || 'Ocurrió un error.';
 
 function toast(t) {
   const d = document.createElement('div');
@@ -232,15 +228,19 @@ function rr(x, px, py, w, h, r) {
 }
 
 /* ===================== Estado ===================== */
-const CFG_DEF = {nombre_taller:'Chewbbie Taller', telefono:'', direccion:'', nota_pie:'¡Gracias por confiar en nosotros!', logo_url:null};
-const S = {clientes:[], motos:[], facturas:[], config:{...CFG_DEF}};
+const CFG_DEF = {nombre_taller:'Chewbbie Taller', telefono:'', direccion:'', nota_pie:'¡Gracias por confiar en nosotros!', insumos_fijo:'', logo_url:null};
+const S = {clientes:[], motos:[], facturas:[], config:{...CFG_DEF}, usuario:''};
 let vista = 'inicio', F = null, ACTIVA = false, ULT = 0;
 let qCli = '', qHis = '', HLIM = 50, CFGLOGO;
 const ABIERTAS = new Set();
 let CV = null, FACT_ACTUAL = null, MODAL_CB = null;
 
-const configurado = /^https:\/\/.+/.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 20;
-const db = configurado ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const configurado = /^https:\/\/script\.google\.com\/.+/.test(APPS_URL);
+
+/* Solo se guarda en el dispositivo la "llave" de la sesión, nunca los datos */
+const leerToken = () => { try { return localStorage.getItem('ct_token') || ''; } catch (e) { return ''; } };
+const guardarToken = t => { try { if (t) localStorage.setItem('ct_token', t); else localStorage.removeItem('ct_token'); } catch (e) {} };
+let TOKEN = leerToken();
 
 /* Logo por defecto (se dibuja con código, sin archivos) */
 function crearLogoDefecto() {
@@ -272,34 +272,46 @@ function aplicarMarca() {
   document.title = S.config.nombre_taller;
 }
 
-/* ===================== Datos (Supabase) ===================== */
-async function fetchAll(tabla, orden) {
-  let todo = [], desde = 0;
-  while (true) {
-    let q = db.from(tabla).select('*').range(desde, desde + 999);
-    orden.forEach(o => { q = q.order(o.c, {ascending:o.asc}); });
-    const {data, error} = await q;
-    if (error) throw error;
-    todo = todo.concat(data);
-    if (data.length < 1000) break;
-    desde += 1000;
+/* ===================== Servidor (Google Apps Script) ===================== */
+async function api(accion, datos) {
+  let r;
+  try {
+    r = await fetch(APPS_URL, {method:'POST', body:JSON.stringify({accion, token:TOKEN, datos:datos || {}})});
+  } catch (e) {
+    throw new Error('No hay conexión con el servidor. Revisa tu internet.');
   }
-  return todo;
+  let j;
+  try {
+    j = await r.json();
+  } catch (e) {
+    throw new Error('El servidor no respondió bien. Revisa que la implementación esté en "Cualquier persona" y que la URL sea la correcta.');
+  }
+  if (!j.ok) {
+    if (j.sesionExpirada) {
+      TOKEN = '';
+      guardarToken('');
+      if (ACTIVA) mostrarLogin('Tu sesión expiró. Entra de nuevo.');
+    }
+    throw new Error(j.error || 'Error del servidor.');
+  }
+  return j.data;
 }
 
-async function cargarDatos() {
-  const [c, m, f, cfg] = await Promise.all([
-    fetchAll('clientes', [{c:'nombre', asc:true}, {c:'id', asc:true}]),
-    fetchAll('motos', [{c:'placa', asc:true}]),
-    fetchAll('facturas', [{c:'numero', asc:false}]),
-    db.from('configuracion').select('*').eq('id', 1).maybeSingle()
-  ]);
-  if (cfg.error) throw cfg.error;
-  S.clientes = c;
-  S.motos = m;
-  S.facturas = f;
-  S.config = {...CFG_DEF, ...(cfg.data || {})};
+function aplicar(r) {
+  S.clientes = r.clientes || [];
+  S.motos = r.motos || [];
+  S.facturas = r.facturas || [];
+  if (r.config) S.config = {...CFG_DEF, ...r.config};
+  if (r.usuario) S.usuario = r.usuario;
   ULT = Date.now();
+}
+
+async function cargarDatos() { aplicar(await api('cargar')); }
+
+async function escribir(accion, datos) {
+  const r = await api(accion, datos);
+  aplicar(r);
+  return r.extra;
 }
 
 /* ===================== Acceso ===================== */
@@ -313,6 +325,7 @@ function pantallaAviso(html) {
 
 function mostrarLogin(msg) {
   ACTIVA = false;
+  cerrarModal(true);
   $('#aviso-pantalla').classList.add('hidden');
   $('#app').classList.add('hidden');
   $('#login').classList.remove('hidden');
@@ -336,41 +349,36 @@ async function entrar(ev) {
   $('#lg-err').textContent = '';
   b.disabled = true;
   b.textContent = 'Entrando...';
-  const {error} = await db.auth.signInWithPassword({email, password:pass});
-  if (error) {
-    $('#lg-err').textContent = 'Correo o contraseña incorrectos.';
-  } else {
+  try {
+    const r = await api('login', {email, password:pass});
+    TOKEN = r.token;
+    guardarToken(TOKEN);
+    $('#lg-pass').value = '';
     await entrarApp();
+  } catch (e) {
+    $('#lg-err').textContent = msgErr(e);
   }
   b.disabled = false;
   b.textContent = 'Entrar';
-  return false;
 }
 
 async function entrarApp() {
-  const {data:ok, error} = await db.rpc('es_autorizado');
-  if (error) {
-    await db.auth.signOut();
-    return mostrarLogin('No se pudo verificar el acceso. Revisa que ya ejecutaste el SQL en Supabase.');
-  }
-  if (ok !== true) {
-    await db.auth.signOut();
-    return mostrarLogin('Este usuario no tiene autorización para entrar.');
-  }
   try {
     await cargarDatos();
   } catch (e) {
+    if (!TOKEN) return mostrarLogin('Tu sesión expiró. Entra de nuevo.');
     return pantallaAviso(`<h2>No se pudieron cargar los datos</h2><p>${esc(msgErr(e))}</p><button class="btn" onclick="location.reload()">Reintentar</button>`);
   }
   ACTIVA = true;
-  const em = (await db.auth.getUser()).data.user?.email || '';
-  $('#usuario-side').textContent = em;
+  $('#usuario-side').textContent = S.usuario;
   vista = 'inicio';
   mostrarApp();
 }
 
-async function salir() {
-  await db.auth.signOut();
+function salir() {
+  api('salir').catch(() => {});
+  TOKEN = '';
+  guardarToken('');
   S.clientes = []; S.motos = []; S.facturas = [];
   S.config = {...CFG_DEF};
   mostrarLogin();
@@ -450,7 +458,7 @@ function verFactura(id) {
 
 function vInicio() {
   const mes = hoyISO().slice(0, 7);
-  const delMes = S.facturas.filter(f => f.fecha.slice(0, 7) === mes);
+  const delMes = S.facturas.filter(f => (f.fecha || '').slice(0, 7) === mes);
   const nm = new Date().toLocaleDateString('es-CO', {month:'long', year:'numeric'});
   return `<div class="cab"><h1>Inicio</h1><button class="btn" onclick="ir('nueva')">+ Crear nueva factura</button></div>
   <div class="g3">
@@ -538,38 +546,26 @@ async function guardarCliente(id) {
   err.textContent = '';
   const nombre = v('mc-nombre'), tel = v('mc-tel');
   if (!nombre) { err.textContent = 'Escribe el nombre del cliente.'; return; }
-  let placa, marca, modelo;
+  const datos = {id:id || undefined, nombre, telefono:tel};
   if (!id) {
-    placa = limpiarPlaca($('#mc-placa').value);
-    marca = v('mc-marca');
-    modelo = v('mc-modelo');
-    if (!placa || !marca || !modelo) { err.textContent = 'Completa la placa, marca y modelo de la moto.'; return; }
-    if (S.motos.some(m => m.placa === placa)) { err.textContent = 'Esa placa ya está registrada.'; return; }
+    datos.placa = limpiarPlaca($('#mc-placa').value);
+    datos.marca = v('mc-marca');
+    datos.modelo = v('mc-modelo');
+    if (!datos.placa || !datos.marca || !datos.modelo) { err.textContent = 'Completa la placa, marca y modelo de la moto.'; return; }
+    if (S.motos.some(m => m.placa === datos.placa)) { err.textContent = 'Esa placa ya está registrada.'; return; }
   }
   const btn = $('#mc-ok');
   btn.disabled = true;
+  btn.textContent = 'Guardando...';
   try {
-    if (id) {
-      const r1 = await db.from('clientes').update({nombre, telefono:tel}).eq('id', id);
-      if (r1.error) throw r1.error;
-      const r2 = await db.from('facturas').update({cliente_nombre:nombre, cliente_telefono:tel}).eq('cliente_id', id);
-      if (r2.error) throw r2.error;
-    } else {
-      const {data:c, error} = await db.from('clientes').insert({nombre, telefono:tel}).select().single();
-      if (error) throw error;
-      const r2 = await db.from('motos').insert({cliente_id:c.id, placa, marca, modelo});
-      if (r2.error) {
-        await db.from('clientes').delete().eq('id', c.id);
-        throw r2.error;
-      }
-    }
+    await escribir('clienteGuardar', datos);
     cerrarModal();
-    await cargarDatos();
     render();
     toast('Guardado');
   } catch (e) {
     err.textContent = msgErr(e);
     btn.disabled = false;
+    btn.textContent = 'Guardar';
   }
 }
 
@@ -592,42 +588,37 @@ async function guardarMoto(clienteId, motoId) {
   if (S.motos.some(m => m.placa === placa && m.id !== motoId)) { err.textContent = 'Esa placa ya está registrada.'; return; }
   const btn = $('#mm-ok');
   btn.disabled = true;
+  btn.textContent = 'Guardando...';
   try {
-    if (motoId) {
-      const r1 = await db.from('motos').update({placa, marca, modelo}).eq('id', motoId);
-      if (r1.error) throw r1.error;
-      const r2 = await db.from('facturas').update({placa, marca, modelo}).eq('moto_id', motoId);
-      if (r2.error) throw r2.error;
-    } else {
-      const r = await db.from('motos').insert({cliente_id:clienteId, placa, marca, modelo});
-      if (r.error) throw r.error;
-    }
+    await escribir('motoGuardar', {id:motoId || undefined, cliente_id:clienteId, placa, marca, modelo});
     cerrarModal();
-    await cargarDatos();
     render();
     toast('Guardado');
   } catch (e) {
     err.textContent = msgErr(e);
     btn.disabled = false;
+    btn.textContent = 'Guardar';
   }
 }
 
 async function eliminarCliente(id) {
   const c = S.clientes.find(x => x.id === id);
   if (!confirm(`¿Eliminar a ${c.nombre} y sus motos? Las facturas ya hechas se conservan en el historial.`)) return;
-  const {error} = await db.from('clientes').delete().eq('id', id);
-  if (error) return toast(msgErr(error));
-  await cargarDatos();
-  render();
+  try {
+    await escribir('clienteEliminar', {id});
+    render();
+    toast('Cliente eliminado');
+  } catch (e) { toast(msgErr(e)); }
 }
 
 async function eliminarMoto(id) {
   const m = S.motos.find(x => x.id === id);
   if (!confirm(`¿Eliminar la moto ${m.placa}? Las facturas ya hechas se conservan en el historial.`)) return;
-  const {error} = await db.from('motos').delete().eq('id', id);
-  if (error) return toast(msgErr(error));
-  await cargarDatos();
-  render();
+  try {
+    await escribir('motoEliminar', {id});
+    render();
+    toast('Moto eliminada');
+  } catch (e) { toast(msgErr(e)); }
 }
 
 /* ===================== NUEVA FACTURA ===================== */
@@ -730,7 +721,7 @@ function pintarInsumos() {
 }
 function setIns(v) {
   F.conInsumos = v;
-  if (v && F.insumos === '') { try { F.insumos = localStorage.getItem('ct_insumos') || ''; } catch (e) {} }
+  if (v && F.insumos === '') F.insumos = String(S.config.insumos_fijo || '');
   pintarInsumos();
   calcTotal();
 }
@@ -772,6 +763,7 @@ function calcTotal() {
 async function guardarFactura() {
   const err = $('#err-fact');
   const btn = $('#btn-guardar');
+  const etiqueta = F.id ? 'Guardar cambios' : 'Guardar factura';
   err.textContent = '';
   const d = datosFactura();
   if (!F.placa) { err.textContent = 'Escribe la placa de la moto.'; return; }
@@ -779,58 +771,19 @@ async function guardarFactura() {
   if (!d.tr.length) { err.textContent = 'Agrega al menos un trabajo realizado.'; return; }
   btn.disabled = true;
   btn.textContent = 'Guardando...';
-  let clienteNuevoId = null, motoCreada = false;
   try {
-    const base = {fecha:F.fecha, trabajos:d.tr, insumos:d.ins, repuestos:d.rp, total:d.total};
-    let fila;
-    if (F.id) {
-      const {data, error} = await db.from('facturas').update({
-        ...base, cliente_nombre:F.nombre.trim(), cliente_telefono:F.tel.trim(),
-        marca:F.marca.trim(), modelo:F.modelo.trim()
-      }).eq('id', F.id).select().single();
-      if (error) throw error;
-      fila = data;
-    } else {
-      let moto = S.motos.find(m => m.placa === F.placa);
-      let cli, snap, motoId;
-      if (moto) {
-        cli = S.clientes.find(c => c.id === moto.cliente_id) || {};
-        motoId = moto.id;
-        snap = {cliente_nombre:cli.nombre || '', cliente_telefono:cli.telefono || '', marca:moto.marca, modelo:moto.modelo};
-      } else {
-        if (F.placa.length < 5) throw new Error('La placa parece incompleta.');
-        if (!F.marca.trim() || !F.modelo.trim()) throw new Error('Escribe la marca y el modelo de la moto.');
-        if (F.clienteSel) {
-          cli = S.clientes.find(c => c.id === F.clienteSel);
-        } else {
-          if (!F.nombre.trim()) throw new Error('Escribe el nombre del cliente.');
-          const r = await db.from('clientes').insert({nombre:F.nombre.trim(), telefono:F.tel.trim()}).select().single();
-          if (r.error) throw r.error;
-          cli = r.data;
-          clienteNuevoId = cli.id;
-        }
-        const rm = await db.from('motos').insert({cliente_id:cli.id, placa:F.placa, marca:F.marca.trim(), modelo:F.modelo.trim()}).select().single();
-        if (rm.error) throw rm.error;
-        motoCreada = true;
-        motoId = rm.data.id;
-        snap = {cliente_nombre:cli.nombre, cliente_telefono:cli.telefono || '', marca:rm.data.marca, modelo:rm.data.modelo};
-      }
-      const {data, error} = await db.from('facturas').insert({
-        ...base, ...snap, placa:F.placa, cliente_id:cli.id, moto_id:motoId
-      }).select().single();
-      if (error) throw error;
-      fila = data;
-    }
-    if (d.ins > 0) { try { localStorage.setItem('ct_insumos', String(d.ins)); } catch (e) {} }
-    await cargarDatos();
+    const fila = await escribir('facturaGuardar', {
+      id:F.id || undefined, fecha:F.fecha, placa:F.placa,
+      clienteSel:F.clienteSel, nombre:F.nombre, tel:F.tel, marca:F.marca, modelo:F.modelo,
+      trabajos:d.tr, insumos:d.ins, repuestos:d.rp
+    });
     btn.disabled = false;
-    btn.textContent = F.id ? 'Guardar cambios' : 'Guardar factura';
+    btn.textContent = etiqueta;
     abrirFactura(fila, () => ir('historial'));
   } catch (e) {
-    if (clienteNuevoId && !motoCreada) await db.from('clientes').delete().eq('id', clienteNuevoId);
     err.textContent = msgErr(e);
     btn.disabled = false;
-    btn.textContent = F.id ? 'Guardar cambios' : 'Guardar factura';
+    btn.textContent = etiqueta;
   }
 }
 
@@ -889,11 +842,11 @@ function editarFactura(id) {
 async function eliminarFactura(id) {
   const f = S.facturas.find(x => x.id === id);
   if (!confirm(`¿Eliminar la factura N° ${num4(f.numero)}? No se puede deshacer.`)) return;
-  const {error} = await db.from('facturas').delete().eq('id', id);
-  if (error) return toast(msgErr(error));
-  await cargarDatos();
-  pintarHistorial();
-  toast('Factura eliminada');
+  try {
+    await escribir('facturaEliminar', {id});
+    pintarHistorial();
+    toast('Factura eliminada');
+  } catch (e) { toast(msgErr(e)); }
 }
 
 /* ===================== FACTURA: DIBUJO, PDF Y PNG ===================== */
@@ -1118,24 +1071,17 @@ function vConfig() {
       <div><label>Teléfono del taller</label><input id="cf-tel" inputmode="tel" value="${esc(c.telefono)}"></div>
       <div><label>Dirección</label><input id="cf-dir" value="${esc(c.direccion)}"></div>
     </div>
+    <div class="mt"><label>Valor fijo de insumos (se propone en cada factura)</label><input id="cf-ins" type="number" inputmode="numeric" min="0" placeholder="Ej: 10000" value="${esc(c.insumos_fijo)}"></div>
     <div class="mt"><label>Mensaje al final de la factura</label><input id="cf-pie" value="${esc(c.nota_pie)}"></div>
     <p class="err" id="cf-err"></p><p class="ok" id="cf-ok"></p>
     <button class="btn mt" id="cf-btn" onclick="guardarConfig()">Guardar cambios</button>
   </div>
-  <div class="card"><h2>Cambiar mi contraseña</h2>
-    <div class="gr dos">
-      <div><label>Nueva contraseña</label><input id="pw1" type="password" autocomplete="new-password"></div>
-      <div><label>Repetir contraseña</label><input id="pw2" type="password" autocomplete="new-password"></div>
-    </div>
-    <p class="err" id="pw-err"></p><p class="ok" id="pw-ok"></p>
-    <button class="btn mt" onclick="cambiarClave()">Actualizar contraseña</button>
-  </div>
   <div class="card"><h2>Copia de seguridad</h2>
-    <p class="mut">Descarga un archivo con todos tus clientes, motos y facturas. Es recomendable hacerlo de vez en cuando.</p>
+    <p class="mut">Descarga un archivo con todos tus clientes, motos y facturas. Tus datos también están en tu hoja de Google Sheets.</p>
     <button class="btn sec" onclick="respaldo()">Descargar copia de seguridad</button>
   </div>
   <div class="card cab2" style="align-items:center">
-    <span class="mut">Sesión: ${esc($('#usuario-side').textContent)}</span>
+    <span class="mut">Sesión: ${esc(S.usuario)}</span>
     <button class="btn sec" onclick="salir()">Cerrar sesión</button>
   </div>`;
 }
@@ -1146,8 +1092,8 @@ function leerLogo(archivo) {
     lector.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const a = img.naturalWidth || 400, h = img.naturalHeight || 400;
-        const e = Math.min(1, 400 / Math.max(a, h));
+        const a = img.naturalWidth || 300, h = img.naturalHeight || 300;
+        const e = Math.min(1, 300 / Math.max(a, h));
         const c = document.createElement('canvas');
         c.width = Math.round(a * e);
         c.height = Math.round(h * e);
@@ -1183,33 +1129,26 @@ async function guardarConfig() {
   const err = $('#cf-err'), ok = $('#cf-ok'), btn = $('#cf-btn');
   err.textContent = ''; ok.textContent = '';
   btn.disabled = true;
+  btn.textContent = 'Guardando...';
   const cambios = {
     nombre_taller:$('#cf-nombre').value.trim() || 'Chewbbie Taller',
     telefono:$('#cf-tel').value.trim(),
     direccion:$('#cf-dir').value.trim(),
     nota_pie:$('#cf-pie').value.trim(),
-    logo_url:CFGLOGO === undefined ? (S.config.logo_url || null) : CFGLOGO
+    insumos_fijo:$('#cf-ins').value.trim()
   };
-  const {error} = await db.from('configuracion').upsert({id:1, ...cambios});
+  if (CFGLOGO !== undefined) cambios.logo_url = CFGLOGO;
+  try {
+    await escribir('configGuardar', cambios);
+    S.config = {...S.config, ...cambios};
+    CFGLOGO = undefined;
+    aplicarMarca();
+    ok.textContent = 'Cambios guardados.';
+  } catch (e) {
+    err.textContent = msgErr(e);
+  }
   btn.disabled = false;
-  if (error) { err.textContent = msgErr(error); return; }
-  S.config = {...S.config, ...cambios};
-  CFGLOGO = undefined;
-  aplicarMarca();
-  ok.textContent = 'Cambios guardados.';
-}
-
-async function cambiarClave() {
-  const a = $('#pw1').value, b = $('#pw2').value;
-  const err = $('#pw-err'), ok = $('#pw-ok');
-  err.textContent = ''; ok.textContent = '';
-  if (a.length < 8) { err.textContent = 'La contraseña debe tener mínimo 8 caracteres.'; return; }
-  if (a !== b) { err.textContent = 'Las contraseñas no coinciden.'; return; }
-  const {error} = await db.auth.updateUser({password:a});
-  if (error) { err.textContent = error.message; return; }
-  ok.textContent = 'Contraseña actualizada.';
-  $('#pw1').value = '';
-  $('#pw2').value = '';
+  btn.textContent = 'Guardar cambios';
 }
 
 function respaldo() {
@@ -1234,12 +1173,15 @@ document.addEventListener('visibilitychange', async () => {
 async function iniciar() {
   document.querySelectorAll('.logo-img').forEach(i => i.src = LOGO_DEFECTO);
   if (!configurado) {
-    return pantallaAviso(`<h2>Falta conectar Supabase</h2>
-      <p>Abre el archivo <b>index.html</b> en GitHub y completa las dos primeras líneas de la sección "CONEXIÓN CON SUPABASE" con tu Project URL y tu clave anon. Te explico cómo en el siguiente paso.</p>`);
+    return pantallaAviso(`<h2>Falta conectar el servidor</h2>
+      <p>Abre el archivo <b>index.html</b> en GitHub y pega la URL de tu aplicación web de Google Apps Script en la línea <b>const APPS_URL</b>.</p>`);
   }
-  db.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && ACTIVA) mostrarLogin(); });
-  const {data} = await db.auth.getSession();
-  if (data.session) await entrarApp(); else mostrarLogin();
+  if (TOKEN) {
+    pantallaAviso('<h2>Cargando...</h2><p>Un momento, estamos trayendo tus datos.</p>');
+    await entrarApp();
+  } else {
+    mostrarLogin();
+  }
 }
 iniciar();
 </script>
