@@ -140,7 +140,7 @@ input:disabled{background:#f3f4f6;color:#6b7280}
   .top .marca img{width:36px;height:36px}
   .top button{border:0;background:none;color:var(--p);font-weight:700}
   main{padding:16px 14px 100px}
-  .bottom{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--pb);z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+  .bottom{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--pb);z-index:30;padding-bottom:env(safe-area-inset-bottom)}
   .bottom button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;font-size:10.5px;font-weight:600;color:#9ca3af}
   .bottom button.on{color:var(--p)}
   .g3,.gr{grid-template-columns:1fr}
@@ -229,7 +229,7 @@ function rr(x, px, py, w, h, r) {
 
 /* ===================== Estado ===================== */
 const CFG_DEF = {nombre_taller:'Chewbbie Taller', telefono:'', direccion:'', nota_pie:'¡Gracias por confiar en nosotros!', insumos_fijo:'', logo_url:null};
-const S = {clientes:[], motos:[], facturas:[], config:{...CFG_DEF}, usuario:''};
+const S = {clientes:[], motos:[], facturas:[], ordenes:[], evidencias:[], config:{...CFG_DEF}, usuario:''};
 let vista = 'inicio', F = null, ACTIVA = false, ULT = 0;
 let qCli = '', qHis = '', HLIM = 50, CFGLOGO;
 const ABIERTAS = new Set();
@@ -301,6 +301,8 @@ function aplicar(r) {
   S.clientes = r.clientes || [];
   S.motos = r.motos || [];
   S.facturas = r.facturas || [];
+  S.ordenes = r.ordenes || [];
+  S.evidencias = r.evidencias || [];
   if (r.config) S.config = {...CFG_DEF, ...r.config};
   if (r.usuario) S.usuario = r.usuario;
   ULT = Date.now();
@@ -379,7 +381,7 @@ function salir() {
   api('salir').catch(() => {});
   TOKEN = '';
   guardarToken('');
-  S.clientes = []; S.motos = []; S.facturas = [];
+  S.clientes = []; S.motos = []; S.facturas = []; S.ordenes = []; S.evidencias = [];
   S.config = {...CFG_DEF};
   mostrarLogin();
 }
@@ -392,7 +394,7 @@ const ICONOS = {
   historial:'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
   config:'M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 100 4 2 2 0 000-4zM8 15a2 2 0 100 4 2 2 0 000-4z'
 };
-const MENU = [['inicio','Inicio'], ['clientes','Clientes'], ['nueva','Nueva factura'], ['historial','Historial'], ['config','Configuración']];
+const MENU = [['inicio','Inicio'], ['ordenes','Órdenes'], ['clientes','Clientes'], ['nueva','Nueva factura'], ['historial','Historial'], ['config','Configuración']];
 const ico = k => `<svg class="ico" viewBox="0 0 24 24"><path d="${ICONOS[k]}"/></svg>`;
 
 function pintarMenus() {
@@ -418,9 +420,10 @@ function irNueva(placa) {
 
 function render() {
   pintarMenus();
-  const vistas = {inicio:vInicio, clientes:vClientes, nueva:vNueva, historial:vHistorial, config:vConfig};
+  const vistas = {inicio:vInicio, ordenes:vOrdenes, clientes:vClientes, nueva:vNueva, historial:vHistorial, config:vConfig};
   $('#vista').innerHTML = vistas[vista]();
   if (vista === 'clientes') pintarClientes();
+  if (vista === 'ordenes') pintarOrdenes();
   if (vista === 'historial') pintarHistorial();
   if (vista === 'nueva') { pintarPlaca(); pintarTrabajos(); pintarInsumos(); pintarRep(); calcTotal(); }
 }
@@ -460,7 +463,7 @@ function vInicio() {
   const mes = hoyISO().slice(0, 7);
   const delMes = S.facturas.filter(f => (f.fecha || '').slice(0, 7) === mes);
   const nm = new Date().toLocaleDateString('es-CO', {month:'long', year:'numeric'});
-  return `<div class="cab"><h1>Inicio</h1><button class="btn" onclick="ir('nueva')">+ Crear nueva factura</button></div>
+  return `<div class="cab"><h1>Inicio</h1><button class="btn" onclick="ir('ordenes')">+ Nueva orden</button></div>
   <div class="g3">
     ${stat('Total de servicios realizados', S.facturas.length)}
     ${stat('Facturación de ' + nm, pesos(sumar(delMes, 'total')))}
@@ -475,7 +478,7 @@ function vInicio() {
 const motosDe = id => S.motos.filter(m => m.cliente_id === id);
 
 function vClientes() {
-  return `<div class="cab"><h1>Clientes y motos</h1><button class="btn" onclick="modalCliente()">+ Nuevo cliente</button></div>
+  return `<div class="cab"><h1>Clientes y motos</h1><button class="btn" onclick="irNueva()">+ Nuevo cliente y factura</button></div>
   <input id="q-cli" placeholder="Buscar por placa, nombre o teléfono" value="${esc(qCli)}" oninput="qCli=this.value;pintarClientes()">
   <div class="mt" id="lista-cli"></div>`;
 }
@@ -484,7 +487,7 @@ function pintarClientes() {
   const t = qCli.trim().toLowerCase();
   const p = limpiarPlaca(qCli);
   const lista = S.clientes.filter(c => !t || c.nombre.toLowerCase().includes(t) || (c.telefono || '').includes(t) || (p && motosDe(c.id).some(m => m.placa.includes(p))));
-  $('#lista-cli').innerHTML = lista.length ? lista.map(tarjetaCliente).join('') : `<div class="card vacio">${S.clientes.length ? 'No hay resultados.' : 'Aún no hay clientes. Crea el primero con el botón "+ Nuevo cliente".'}</div>`;
+  $('#lista-cli').innerHTML = lista.length ? lista.map(tarjetaCliente).join('') : `<div class="card vacio">${S.clientes.length ? 'No hay resultados.' : 'Aún no hay clientes. Registra el primero con el botón "+ Nuevo cliente y factura".'}</div>`;
 }
 
 function tarjetaCliente(c) {
@@ -634,8 +637,8 @@ function nuevaEstado(placa) {
 
 function vNueva() {
   const ed = !!F.id;
-  return `<h1>${ed ? 'Editar factura N° ' + num4(F.numero) : 'Nueva factura'}</h1>
-  <div class="card"><h2>Datos de la factura</h2>
+  return `<h1>${ed ? 'Editar factura N° ' + num4(F.numero) : 'Registrar servicio y crear factura'}</h1>
+  <div class="card"><h2>1. Datos del cliente y la motocicleta</h2><p class="mut">Completa la placa, el cliente y la moto. Si la placa ya existe, mostraremos sus datos automáticamente.</p>
     <div class="gr">
       <div><label>Número</label><input disabled value="${ed ? num4(F.numero) : 'Automático'}"></div>
       <div><label>Fecha</label><input type="date" value="${esc(F.fecha)}" onchange="F.fecha=this.value"></div>
@@ -643,14 +646,14 @@ function vNueva() {
     </div>
     <div class="mt" id="placa-box"></div>
   </div>
-  <div class="card"><h2>Trabajos realizados</h2><div id="trab-list"></div>
+  <div class="card"><h2>2. Trabajos realizados</h2><div id="trab-list"></div>
     <button type="button" class="btn sec" onclick="addTrabajo()">+ Agregar trabajo</button></div>
-  <div class="card"><h2>¿Se usaron insumos?</h2><div id="ins-box"></div></div>
-  <div class="card"><h2>¿Se usaron repuestos?</h2><div id="rep-box"></div></div>
+  <div class="card"><h2>3. ¿Se usaron insumos?</h2><div id="ins-box"></div></div>
+  <div class="card"><h2>4. ¿Se usaron repuestos?</h2><div id="rep-box"></div></div>
   <div class="card">
     <div id="tot-box"></div>
     <p class="err" id="err-fact"></p>
-    <button class="btn blq" id="btn-guardar" onclick="guardarFactura()">${ed ? 'Guardar cambios' : 'Guardar factura'}</button>
+    <button class="btn blq" id="btn-guardar" onclick="guardarFactura()">${ed ? 'Guardar cambios' : 'Crear factura'}</button>
     ${ed ? '<button class="btn sec blq" onclick="ir(\'historial\')">Cancelar</button>' : ''}
   </div>`;
 }
@@ -685,10 +688,9 @@ function pintarPlaca() {
     box.innerHTML = `<div class="info">
       <div><small>MOTO REGISTRADA</small><b>${esc(m.marca)} ${esc(m.modelo)}</b></div>
       <div><small>CLIENTE</small><b>${esc(c.nombre)}</b><span class="mut">${esc(c.telefono)}</span></div></div>`;
-  } else if (p.length >= 5) {
-    box.innerHTML = camposMoto(true);
   } else {
-    box.innerHTML = '';
+    // Los datos del cliente se muestran desde el inicio, sin esperar a escribir la placa.
+    box.innerHTML = camposMoto(true);
   }
 }
 
@@ -763,7 +765,7 @@ function calcTotal() {
 async function guardarFactura() {
   const err = $('#err-fact');
   const btn = $('#btn-guardar');
-  const etiqueta = F.id ? 'Guardar cambios' : 'Guardar factura';
+  const etiqueta = F.id ? 'Guardar cambios' : 'Crear factura';
   err.textContent = '';
   const d = datosFactura();
   if (!F.placa) { err.textContent = 'Escribe la placa de la moto.'; return; }
@@ -1154,11 +1156,117 @@ async function guardarConfig() {
 function respaldo() {
   const o = {
     fecha:new Date().toISOString(),
-    clientes:S.clientes, motos:S.motos, facturas:S.facturas,
+    clientes:S.clientes, motos:S.motos, facturas:S.facturas, ordenes:S.ordenes, evidencias:S.evidencias,
     configuracion:{...S.config, logo_url:undefined}
   };
   bajar(new Blob([JSON.stringify(o, null, 2)], {type:'application/json'}), `respaldo-chewbbie-${hoyISO()}.json`);
 }
+
+
+/* ================= ÓRDENES DE TRABAJO ================= */
+let O = null, QO = '';
+function abrirOrden(id) {
+  const o = id ? S.ordenes.find(x=>x.id===id) : null;
+  O = o ? JSON.parse(JSON.stringify(o)) : {
+    placa:'',cliente_nombre:'',cliente_telefono:'',marca:'',modelo:'', ingreso:hoyISO(),motivo:'',estado:'Pendiente',
+    trabajos:[{descripcion:'',precio:0,hecho:false}],insumos:0,repuestos:[],observaciones:''
+  };
+  mostrarOrden();
+}
+function ordenMoto() {
+  if(O.id)return;
+  const m=S.motos.find(x=>x.placa===limpiarPlaca(O.placa));
+  if(m){const c=S.clientes.find(x=>x.id===m.cliente_id)||{};
+    O.marca=m.marca;O.modelo=m.modelo;O.cliente_nombre=c.nombre||'';O.cliente_telefono=c.telefono||'';
+  }
+  mostrarOrden();
+}
+function vOrdenes() {
+  return `<div class="cab"><h1>Órdenes de trabajo</h1><button class="btn" onclick="abrirOrden()">+ Recibir motocicleta</button></div>
+  <p class="mut">Guarda los trabajos mientras reparas. Genera la factura solo al finalizar.</p>
+  <input placeholder="Buscar placa o cliente" value="${esc(QO)}" oninput="QO=this.value;pintarOrdenes()">
+  <div id="ordenes-lista" class="mt"></div>`;
+}
+function pintarOrdenes() {
+  const box=$('#ordenes-lista');if(!box)return;
+  const filtro=QO.toLowerCase();
+  const items=S.ordenes.filter(o=>(o.placa+' '+o.cliente_nombre).toLowerCase().includes(filtro));
+  box.innerHTML=items.length?items.map(o=>`<div class="card cab2"><div><span class="placa">${esc(o.placa)}</span>
+  <b>${esc(o.marca)} ${esc(o.modelo)}</b><div class="mut">${esc(o.cliente_nombre)} · ${fechaCorta(o.ingreso)} · ${esc(o.estado)}</div>
+  <div class="mut">${esc(o.motivo||'Sin motivo registrado')}</div></div>
+  <button class="btn sm" onclick="abrirOrden('${o.id}')">${o.factura_id?'Ver orden':'Continuar'}</button></div>`).join(''):'<div class="card vacio">Aún no hay órdenes de trabajo.</div>';
+}
+function lineaOrdenTrabajo(i,t,read) {
+  return `<div class="linea" style="align-items:center"><input type="checkbox" style="width:24px;flex:none" ${t.hecho?'checked':''} ${read?'disabled':''} onchange="O.trabajos[${i}].hecho=this.checked">
+  <input aria-label="Trabajo" placeholder="Trabajo / revisión" value="${esc(t.descripcion)}" ${read?'disabled':''} oninput="O.trabajos[${i}].descripcion=this.value">
+  <input aria-label="Precio" class="pr" type="number" min="0" value="${Number(t.precio)||0}" ${read?'disabled':''} oninput="O.trabajos[${i}].precio=this.value"></div>`;
+}
+function mostrarOrden() {
+  const read=!!O.factura_id;
+  const fotos=O.id?S.evidencias.filter(x=>x.orden_id===O.id):[];
+  abrirModal('Orden de trabajo · '+(O.placa||'Nueva'),`<div class="sub">
+  <div class="g2"><div><label>Placa *</label><input value="${esc(O.placa)}" ${O.id?'disabled':''} oninput="O.placa=limpiarPlaca(this.value);this.value=O.placa" onchange="ordenMoto()"></div>
+  <div><label>Fecha de ingreso *</label><input type="date" value="${esc(O.ingreso)}" ${read?'disabled':''} onchange="O.ingreso=this.value"></div></div>
+  <div class="g2"><div><label>Cliente *</label><input value="${esc(O.cliente_nombre)}" ${O.id||read?'disabled':''} oninput="O.cliente_nombre=this.value"></div>
+  <div><label>Teléfono</label><input value="${esc(O.cliente_telefono)}" ${O.id||read?'disabled':''} oninput="O.cliente_telefono=this.value"></div></div>
+  <div class="g2"><div><label>Marca *</label><input value="${esc(O.marca)}" ${O.id||read?'disabled':''} oninput="O.marca=this.value"></div>
+  <div><label>Modelo *</label><input value="${esc(O.modelo)}" ${O.id||read?'disabled':''} oninput="O.modelo=this.value"></div></div>
+  <label>Problema reportado</label><textarea style="width:100%;min-height:70px" ${read?'disabled':''} oninput="O.motivo=this.value">${esc(O.motivo)}</textarea>
+  <label>Estado</label><select ${read?'disabled':''} onchange="O.estado=this.value"><option ${O.estado==='Pendiente'?'selected':''}>Pendiente</option><option ${O.estado==='En proceso'?'selected':''}>En proceso</option><option ${O.estado==='Finalizada'?'selected':''}>Finalizada</option>${read?'<option selected>Facturada</option>':''}</select>
+  </div><div class="card mt"><h2>Checklist de trabajos</h2><div id="ot-trabajos"></div>${read?'':'<button class="btn sec sm" onclick="O.trabajos.push({descripcion:\'\',precio:0,hecho:false});pintarOtFilas()">+ Agregar trabajo</button>'}</div>
+  <div class="card"><h2>Insumos y repuestos</h2><label>Valor total de insumos</label><input type="number" min="0" value="${Number(O.insumos)||0}" ${read?'disabled':''} oninput="O.insumos=this.value"><div id="ot-repuestos" class="mt"></div>
+  ${read?'':'<button class="btn sec sm" onclick="O.repuestos.push({nombre:\'\',precio:0});pintarOtFilas()">+ Agregar repuesto</button>'}</div>
+  <div class="card"><h2>Observaciones</h2><textarea style="width:100%;min-height:80px" ${read?'disabled':''} oninput="O.observaciones=this.value">${esc(O.observaciones)}</textarea></div>
+  <div class="card"><h2>Fotos de evidencia</h2><p class="mut">Primero guarda la orden. Las fotos se almacenan en Google Drive privado.</p>
+  <div id="ot-fotos">${fotos.map(f=>`<div class="fila"><span>${esc(f.etapa)} · ${esc(f.nombre)}</span><div class="bt"><button class="btn sec sm" onclick="verFoto('${f.id}')">Ver</button>${read?'':`<button class="btn red sm" onclick="quitarFoto('${f.id}')">Quitar</button>`}</div></div>`).join('')}</div>
+  ${O.id&&!read?'<div class="g2 mt"><select id="foto-etapa"><option>Antes</option><option>Durante</option><option>Después</option></select><input id="foto-nueva" type="file" accept="image/*" capture="environment"></div><button class="btn sec sm mt" onclick="subirFoto()">Subir foto</button>':''}</div>
+  <p class="err" id="ot-error"></p><div class="acc"><button class="btn sec" onclick="cerrarModal()">Cerrar</button>
+  ${read?`<button class="btn" onclick="abrirFacturaOrden('${O.factura_id}')">Ver factura</button>`:`<button class="btn" id="ot-guardar" onclick="guardarOrdenUI()">Guardar orden</button>${O.id&&O.estado==='Finalizada'?'<button class="btn" onclick="facturarOrdenUI()">¿Generar factura?</button>':''}`}</div>`,true);
+  pintarOtFilas();
+}
+function pintarOtFilas() {
+  const read=!!O.factura_id;
+  const tr=$('#ot-trabajos'), rp=$('#ot-repuestos');
+  if(tr)tr.innerHTML=O.trabajos.map((t,i)=>lineaOrdenTrabajo(i,t,read)).join('');
+  if(rp)rp.innerHTML=O.repuestos.map((r,i)=>`<div class="linea"><input placeholder="Repuesto" value="${esc(r.nombre)}" ${read?'disabled':''} oninput="O.repuestos[${i}].nombre=this.value"><input type="number" min="0" class="pr" value="${Number(r.precio)||0}" ${read?'disabled':''} oninput="O.repuestos[${i}].precio=this.value"></div>`).join('');
+}
+async function guardarOrdenUI() {
+ const e=$('#ot-error'),b=$('#ot-guardar');e.textContent='';
+ if(!O.placa||!O.ingreso||!O.cliente_nombre||!O.marca||!O.modelo){e.textContent='Completa los datos de la moto y del cliente.';return;}
+ b.disabled=true;
+ try {const r=await escribir('ordenGuardar',O);O=S.ordenes.find(x=>x.id===r.orden_id);toast('Orden guardada');mostrarOrden();}
+ catch(err){e.textContent=msgErr(err);b.disabled=false;}
+}
+async function facturarOrdenUI() {
+ if(O.estado!=='Finalizada'){toast('Primero selecciona Finalizada y guarda la orden.');return;}
+ if(!confirm('¿Deseas generar ahora la factura de esta orden? Esta acción la cerrará para edición.'))return;
+ try{const r=await escribir('ordenFacturar',{id:O.id,fecha:hoyISO()});cerrarModal(true);abrirFacturaOrden(r.factura_id);}
+ catch(err){$('#ot-error').textContent=msgErr(err);}
+}
+function abrirFacturaOrden(id){const f=S.facturas.find(x=>x.id===id);if(f){cerrarModal(true);abrirFactura(f);}else toast('No se encontró la factura.');}
+async function fotoReducida(archivo){
+ const url=URL.createObjectURL(archivo);
+ try {const im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=url;});
+ const ratio=Math.min(1,1100/Math.max(im.width,im.height));
+ const c=document.createElement('canvas');c.width=Math.round(im.width*ratio);c.height=Math.round(im.height*ratio);
+ c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+ return c.toDataURL('image/jpeg',.72);
+ }finally{URL.revokeObjectURL(url);}
+}
+async function subirFoto(){
+ const a=$('#foto-nueva')?.files?.[0];if(!a){toast('Selecciona una fotografía.');return;}
+ if(!a.type.startsWith('image/')){toast('Elige una imagen.');return;}
+ try{const imagen=await fotoReducida(a);await escribir('fotoGuardar',{orden_id:O.id,imagen,nombre:a.name,etapa:$('#foto-etapa').value});O=S.ordenes.find(x=>x.id===O.id);mostrarOrden();toast('Foto guardada');}
+ catch(err){$('#ot-error').textContent=msgErr(err);}
+}
+async function verFoto(id){
+ const w=window.open('','_blank');if(!w){toast('Permite ventanas emergentes para ver la foto.');return;}
+ try{const r=await api('fotoVer',{id});w.document.title='Evidencia Chewbbie';const img=w.document.createElement('img');img.style.maxWidth='100%';img.style.height='auto';img.src=r.imagen;w.document.body.appendChild(img);}
+ catch(e){w.close();toast(msgErr(e));}
+}
+async function quitarFoto(id){if(!confirm('¿Eliminar esta evidencia?'))return;
+ try{await escribir('fotoEliminar',{id});O=S.ordenes.find(x=>x.id===O.id);mostrarOrden();}
+ catch(e){toast(msgErr(e));}}
 
 /* ===================== Inicio de la aplicación ===================== */
 document.addEventListener('visibilitychange', async () => {
