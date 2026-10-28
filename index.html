@@ -395,7 +395,7 @@ const ICONOS = {
   historial:'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
   config:'M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 100 4 2 2 0 000-4zM8 15a2 2 0 100 4 2 2 0 000-4z'
 };
-const MENU = [['inicio','Inicio'], ['ordenes','Órdenes'], ['clientes','Clientes'], ['nueva','Nueva factura'], ['historial','Historial'], ['config','Configuración']];
+const MENU = [['inicio','Inicio'], ['ordenes','Órdenes'], ['clientes','Clientes'], ['historial','Historial'], ['config','Configuración']];
 const ico = k => `<svg class="ico" viewBox="0 0 24 24"><path d="${ICONOS[k]}"/></svg>`;
 
 function pintarMenus() {
@@ -479,56 +479,105 @@ function vInicio() {
 const motosDe = id => S.motos.filter(m => m.cliente_id === id);
 
 function vClientes() {
-  return `<div class="cab"><h1>Clientes y motos</h1><button class="btn" onclick="irNueva()">+ Nuevo cliente y factura</button></div>
+  return `<div class="cab"><h1>Clientes y motos</h1><button class="btn" onclick="abrirOrden()">+ Recibir motocicleta</button></div>
+  <p class="mut">Consulta las órdenes, trabajos y facturas de cada motocicleta. Las órdenes sin factura también se muestran.</p>
   <input id="q-cli" placeholder="Buscar por placa, nombre o teléfono" value="${esc(qCli)}" oninput="qCli=this.value;pintarClientes()">
   <div class="mt" id="lista-cli"></div>`;
 }
 
-function pintarClientes() {
-  const t = qCli.trim().toLowerCase();
-  const p = limpiarPlaca(qCli);
-  const lista = S.clientes.filter(c => !t || c.nombre.toLowerCase().includes(t) || (c.telefono || '').includes(t) || (p && motosDe(c.id).some(m => m.placa.includes(p))));
-  $('#lista-cli').innerHTML = lista.length ? lista.map(tarjetaCliente).join('') : `<div class="card vacio">${S.clientes.length ? 'No hay resultados.' : 'Aún no hay clientes. Registra el primero con el botón "+ Nuevo cliente y factura".'}</div>`;
+function ordenesDePlaca(placa) {
+  const p=limpiarPlaca(placa);
+  return S.ordenes.filter(o=>limpiarPlaca(o.placa)===p)
+    .sort((a,b)=>String(b.ingreso||'').localeCompare(String(a.ingreso||'')));
 }
-
+function facturasDePlaca(placa) {
+  const p=limpiarPlaca(placa);
+  return S.facturas.filter(f=>limpiarPlaca(f.placa)===p)
+    .sort((a,b)=>Number(b.numero)-Number(a.numero));
+}
+function pintarClientes() {
+  const t=qCli.trim().toLowerCase(), p=limpiarPlaca(qCli);
+  const normales=S.clientes.filter(c=>!t || c.nombre.toLowerCase().includes(t)
+    || (c.telefono||'').includes(t)
+    || (p && motosDe(c.id).some(m=>m.placa.includes(p)))
+    || S.ordenes.some(o=>o.cliente_nombre.toLowerCase()===c.nombre.toLowerCase()
+       && (limpiarPlaca(o.placa).includes(p)||o.cliente_nombre.toLowerCase().includes(t))));
+  const placasExistentes=new Set(S.motos.map(m=>limpiarPlaca(m.placa)));
+  const extras=S.ordenes.filter(o=>o.placa && !placasExistentes.has(limpiarPlaca(o.placa)))
+    .filter((o,i,l)=>l.findIndex(x=>limpiarPlaca(x.placa)===limpiarPlaca(o.placa))===i)
+    .filter(o=>!t || limpiarPlaca(o.placa).includes(p) || o.cliente_nombre.toLowerCase().includes(t)
+      || (o.cliente_telefono||'').includes(t));
+  const html=normales.map(tarjetaCliente).join('') +
+    extras.map(o=>`<div class="card"><div class="nom">${esc(o.cliente_nombre||'Cliente sin nombre')}</div>
+      <div class="mut">${esc(o.cliente_telefono||'')}</div>
+      ${bloqueMoto({id:'orden-'+o.id,placa:o.placa,marca:o.marca,modelo:o.modelo,cliente_id:''})}</div>`).join('');
+  $('#lista-cli').innerHTML=html || '<div class="card vacio">No hay clientes ni órdenes para esta búsqueda.</div>';
+}
 function tarjetaCliente(c) {
-  const ms = motosDe(c.id);
+  const ms=motosDe(c.id);
   return `<div class="card">
     <div class="cab2">
-      <div><div class="nom">${esc(c.nombre)}</div><div class="mut">${esc(c.telefono) || 'Sin teléfono'}</div></div>
+      <div><div class="nom">${esc(c.nombre)}</div><div class="mut">${esc(c.telefono)||'Sin teléfono'}</div></div>
       <div class="bt">
         <button class="btn sec sm" onclick="modalCliente('${c.id}')">Editar</button>
         <button class="btn sec sm" onclick="modalMoto('${c.id}')">+ Moto</button>
         <button class="btn red sm" onclick="eliminarCliente('${c.id}')">Eliminar</button>
       </div>
     </div>
-    ${ms.length ? ms.map(bloqueMoto).join('') : '<p class="mut">Sin motos registradas.</p>'}
+    ${ms.length?ms.map(bloqueMoto).join(''):'<p class="mut">Sin motos registradas.</p>'}
   </div>`;
 }
-
 function bloqueMoto(m) {
-  const abierta = ABIERTAS.has(m.id);
-  let det = '';
-  if (abierta) {
-    const fs = S.facturas.filter(f => f.moto_id === m.id);
-    det = '<div class="serv">' + (fs.length
-      ? fs.map(f => `<div class="fila" onclick="verFactura('${f.id}')"><div><b>#${num4(f.numero)}</b> <span class="mut">${fechaCorta(f.fecha)} · ${esc((f.trabajos || []).map(t => t.descripcion).join(', ').slice(0, 70))}</span></div><div class="monto">${pesos(f.total)}</div></div>`).join('') + `<div class="tr">Total en esta moto: <b>${pesos(sumar(fs, 'total'))}</b></div>`
-      : '<p class="mut" style="padding:8px">Esta moto aún no tiene servicios.</p>') + '</div>';
+  const placa=limpiarPlaca(m.placa), abierta=ABIERTAS.has(placa);
+  const ordenes=ordenesDePlaca(placa), facturas=facturasDePlaca(placa);
+  let det='';
+  if(abierta){
+    const ordenHtml=ordenes.map(o=>{
+      const realizados=(o.trabajos||[]).filter(t=>t.hecho);
+      const pendientes=(o.trabajos||[]).filter(t=>!t.hecho);
+      const evid=S.evidencias.filter(f=>f.orden_id===o.id).length;
+      return `<div class="card" style="margin:10px 0;padding:12px">
+        <div class="cab2"><div><b>Orden ${fechaCorta(o.ingreso)}</b> · ${esc(o.estado)}
+          <div class="mut">${esc(o.motivo||'Sin problema reportado')}</div></div>
+          <button class="btn sec sm" onclick="abrirOrden('${o.id}')">Ver orden y fotos${evid?' ('+evid+')':''}</button>
+        </div>
+        ${realizados.length?`<div class="mut mt"><b>Trabajos realizados:</b></div>
+          ${realizados.map(t=>`<div class="fl"><span>${esc(t.descripcion)}</span><span>${pesos(t.precio)}</span></div>`).join('')}`:'<div class="mut mt">Sin trabajos marcados como realizados.</div>'}
+        ${pendientes.length?`<div class="mut mt">Pendientes: ${esc(pendientes.map(t=>t.descripcion).filter(Boolean).join(', ')||'Sin descripción')}</div>`:''}
+        ${Number(o.insumos)>0?`<div class="fl"><span>Insumos</span><span>${pesos(o.insumos)}</span></div>`:''}
+        ${(o.repuestos||[]).length?`<div class="mut mt">Repuestos: ${esc(o.repuestos.map(r=>r.nombre).filter(Boolean).join(', '))}</div>`:''}
+        ${o.factura_id?`<button class="btn sm mt" onclick="abrirFacturaOrden('${o.factura_id}')">Ver factura</button>`:
+          o.estado==='Finalizada'?`<button class="btn sm mt" onclick="facturarDesdeLista('${o.id}')">Generar factura</button>`:''}
+      </div>`;
+    }).join('');
+    const idsFacturadas=new Set(ordenes.map(o=>o.factura_id).filter(Boolean));
+    const antiguas=facturas.filter(f=>!idsFacturadas.has(f.id));
+    const factHtml=antiguas.map(f=>`<div class="fila" onclick="verFactura('${f.id}')">
+      <div><b>Factura #${num4(f.numero)}</b> · ${fechaCorta(f.fecha)}
+      <div class="mut">${esc((f.trabajos||[]).map(t=>t.descripcion).join(', ').slice(0,100))}</div></div>
+      <span class="monto">${pesos(f.total)}</span></div>`).join('');
+    det=`<div class="serv" style="padding:12px">
+      <h2>Órdenes de trabajo (${ordenes.length})</h2>
+      ${ordenHtml||'<p class="mut">Todavía no hay órdenes guardadas para esta placa.</p>'}
+      <h2 class="mt">Facturas anteriores (${facturas.length})</h2>
+      ${factHtml||(!facturas.length?'<p class="mut">Todavía no hay facturas.</p>':'<p class="mut">Las facturas de las órdenes aparecen arriba.</p>')}
+      </div>`;
   }
   return `<div class="moto">
     <div class="cab2">
-      <div><span class="placa">${esc(m.placa)}</span> <b>${esc(m.marca)} ${esc(m.modelo)}</b></div>
+      <div><span class="placa">${esc(placa)}</span> <b>${esc(m.marca)} ${esc(m.modelo)}</b>
+      <div class="mut">${ordenes.length} órdenes · ${facturas.length} facturas</div></div>
       <div class="bt">
-        <button class="btn sec sm" onclick="alternarServicios('${m.id}')">${abierta ? 'Ocultar servicios' : 'Ver servicios'}</button>
-        <button class="btn sm" onclick="irNueva('${esc(m.placa)}')">Facturar</button>
-        <button class="btn sec sm" onclick="modalMoto('${m.cliente_id}','${m.id}')">Editar</button>
-        <button class="btn red sm" onclick="eliminarMoto('${m.id}')">Eliminar</button>
+        <button class="btn sec sm" onclick="alternarServicios('${placa}')">${abierta?'Ocultar historial':'Ver historial'}</button>
+        <button class="btn sm" onclick="abrirOrdenParaPlaca('${esc(placa)}')">+ Orden</button>
+        ${m.cliente_id?`<button class="btn sec sm" onclick="modalMoto('${m.cliente_id}','${m.id}')">Editar</button>
+          <button class="btn red sm" onclick="eliminarMoto('${m.id}')">Eliminar</button>`:''}
       </div>
     </div>${det}</div>`;
 }
-
-function alternarServicios(id) {
-  if (ABIERTAS.has(id)) ABIERTAS.delete(id); else ABIERTAS.add(id);
+function alternarServicios(placa) {
+  const p=limpiarPlaca(placa);
+  if(ABIERTAS.has(p)) ABIERTAS.delete(p); else ABIERTAS.add(p);
   pintarClientes();
 }
 
@@ -1174,12 +1223,28 @@ function abrirOrden(id) {
   };
   mostrarOrden();
 }
+function abrirOrdenParaPlaca(placa) {
+  abrirOrden();
+  O.placa=limpiarPlaca(placa);
+  const m=S.motos.find(x=>x.placa===O.placa);
+  if(m){const c=S.clientes.find(x=>x.id===m.cliente_id)||{};
+    O.marca=m.marca;O.modelo=m.modelo;
+    O.cliente_nombre=c.nombre||'';O.cliente_telefono=c.telefono||'';
+  }else {
+    const prev=ordenesDePlaca(placa)[0];
+    if(prev){O.marca=prev.marca;O.modelo=prev.modelo;O.cliente_nombre=prev.cliente_nombre;O.cliente_telefono=prev.cliente_telefono;}
+  }
+  mostrarOrden();
+}
 function ordenMoto() {
   if(O.id)return;
   const m=S.motos.find(x=>x.placa===limpiarPlaca(O.placa));
   if(m){const c=S.clientes.find(x=>x.id===m.cliente_id)||{};
     O.marca=m.marca;O.modelo=m.modelo;O.cliente_nombre=c.nombre||'';O.cliente_telefono=c.telefono||'';
   }
+  else {const prev=ordenesDePlaca(O.placa)[0];if(prev){
+    O.marca=prev.marca;O.modelo=prev.modelo;O.cliente_nombre=prev.cliente_nombre;O.cliente_telefono=prev.cliente_telefono;
+  }}
   mostrarOrden();
 }
 function vOrdenes() {
@@ -1195,7 +1260,10 @@ function pintarOrdenes() {
   box.innerHTML=items.length?items.map(o=>`<div class="card cab2"><div><span class="placa">${esc(o.placa)}</span>
   <b>${esc(o.marca)} ${esc(o.modelo)}</b><div class="mut">${esc(o.cliente_nombre)} · ${fechaCorta(o.ingreso)} · ${esc(o.estado)}</div>
   <div class="mut">${esc(o.motivo||'Sin motivo registrado')}</div></div>
-  <button class="btn sm" onclick="abrirOrden('${o.id}')">${o.factura_id?'Ver orden':'Continuar'}</button></div>`).join(''):'<div class="card vacio">Aún no hay órdenes de trabajo.</div>';
+  <div class="bt">
+    <button class="btn sec sm" onclick="abrirOrden('${o.id}')">${o.factura_id?'Ver orden':'Continuar'}</button>
+    ${o.factura_id?`<button class="btn sm" onclick="abrirFacturaOrden('${o.factura_id}')">Ver factura</button>`:o.estado==='Finalizada'?`<button class="btn sm" onclick="facturarDesdeLista('${o.id}')">Generar factura</button>`:''}
+  </div></div>`).join(''):'<div class="card vacio">Aún no hay órdenes de trabajo.</div>';
 }
 function lineaOrdenTrabajo(i,t,read) {
   return `<div class="linea" style="align-items:center"><input type="checkbox" style="width:24px;flex:none" ${t.hecho?'checked':''} ${read?'disabled':''} onchange="O.trabajos[${i}].hecho=this.checked">
@@ -1243,14 +1311,39 @@ async function guardarOrdenUI() {
  const e=$('#ot-error'),b=$('#ot-guardar');e.textContent='';
  if(!O.placa||!O.ingreso||!O.cliente_nombre||!O.marca||!O.modelo){e.textContent='Completa los datos de la moto y del cliente.';return;}
  b.disabled=true;
- try {const r=await escribir('ordenGuardar',O);O=S.ordenes.find(x=>x.id===r.orden_id);toast('Orden guardada');mostrarOrden();}
+ try {
+   const r=await escribir('ordenGuardar',O);
+   O=S.ordenes.find(x=>x.id===r.orden_id);
+   toast('Orden guardada');
+   mostrarOrden();
+   if (O.estado==='Finalizada' && !O.factura_id) {
+     if (confirm('La orden quedó finalizada y guardada. ¿Deseas generar la factura ahora con estos mismos datos? Puedes elegir Cancelar para facturar después.')) {
+       await facturarOrdenUI(true);
+     }
+   }
+ }
  catch(err){e.textContent=msgErr(err);b.disabled=false;}
 }
-async function facturarOrdenUI() {
- if(O.estado!=='Finalizada'){toast('Primero selecciona Finalizada y guarda la orden.');return;}
- if(!confirm('¿Deseas generar ahora la factura de esta orden? Esta acción la cerrará para edición.'))return;
- try{const r=await escribir('ordenFacturar',{id:O.id,fecha:hoyISO()});cerrarModal(true);abrirFacturaOrden(r.factura_id);}
- catch(err){$('#ot-error').textContent=msgErr(err);}
+async function facturarDesdeLista(id) {
+  const orden=S.ordenes.find(x=>x.id===id);
+  if(!orden || orden.estado!=='Finalizada' || orden.factura_id) return;
+  abrirOrden(id);
+  await facturarOrdenUI();
+}
+async function facturarOrdenUI(confirmada=false) {
+ if(!O?.id || O.estado!=='Finalizada'){toast('Primero selecciona Finalizada y guarda la orden.');return;}
+ if(O.factura_id){abrirFacturaOrden(O.factura_id);return;}
+ if(!confirmada && !confirm('¿Generar la factura con los datos guardados de esta orden? Se copiarán cliente, moto, trabajos realizados, insumos y repuestos. La orden quedará cerrada para edición.'))return;
+ try{
+   const r=await escribir('ordenFacturar',{id:O.id,fecha:hoyISO()});
+   cerrarModal(true);
+   render();
+   abrirFacturaOrden(r.factura_id);
+ } catch(err){
+   const aviso=$('#ot-error');
+   if(aviso) aviso.textContent=msgErr(err);
+   else toast(msgErr(err));
+ }
 }
 function abrirFacturaOrden(id){const f=S.facturas.find(x=>x.id===id);if(f){cerrarModal(true);abrirFactura(f);}else toast('No se encontró la factura.');}
 async function fotoReducida(archivo){
