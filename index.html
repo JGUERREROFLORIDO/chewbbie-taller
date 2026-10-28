@@ -235,6 +235,7 @@ let vista = 'inicio', F = null, ACTIVA = false, ULT = 0;
 let qCli = '', qHis = '', HLIM = 50, CFGLOGO;
 const ABIERTAS = new Set();
 let CV = null, FACT_ACTUAL = null, MODAL_CB = null;
+let FACT_FOTOS_PAGINAS = [];
 
 const configurado = /^https:\/\/script\.google\.com\/.+/.test(APPS_URL);
 
@@ -1051,9 +1052,42 @@ async function facturaCanvas(f) {
   return c;
 }
 
+
+/* Evidencias de la orden asociada a esta factura. Drive sigue privado. */
+async function paginasEvidenciasFactura(f) {
+  const ordenes=S.ordenes.filter(o=>o.factura_id===f.id);
+  if(!ordenes.length)return [];
+  const evidencias=S.evidencias.filter(e=>ordenes.some(o=>o.id===e.orden_id));
+  const paginas=[];
+  for (const evidencia of evidencias) {
+    const r=await api('fotoVer',{id:evidencia.id});
+    const img=await cargarImg(r.imagen);
+    if(!img)throw new Error('No se pudo cargar la evidencia '+(evidencia.nombre||evidencia.id));
+    const c=document.createElement('canvas');
+    c.width=800;c.height=1131;
+    const x=c.getContext('2d');
+    x.fillStyle='#ffffff';x.fillRect(0,0,800,1131);
+    x.fillStyle='#6d28d9';x.fillRect(0,0,800,112);
+    x.fillStyle='#fff';x.font='bold 27px sans-serif';x.fillText('EVIDENCIA FOTOGRÁFICA',42,55);
+    x.font='16px sans-serif';x.fillText('Factura #'+num4(f.numero)+' · Placa '+f.placa,42,86);
+    x.fillStyle='#1e1b2e';x.font='bold 19px sans-serif';
+    x.fillText((evidencia.etapa||'Durante').slice(0,25),42,151);
+    x.font='14px sans-serif';
+    const titulo=(evidencia.nombre||'Fotografía').slice(0,80);
+    x.fillText(titulo,42,179);
+    const maxW=716,maxH=850;
+    const factor=Math.min(maxW/img.width,maxH/img.height);
+    const iw=img.width*factor, ih=img.height*factor;
+    x.drawImage(img,(800-iw)/2,205+(maxH-ih)/2,iw,ih);
+    x.fillStyle='#6d28d9';x.fillRect(0,1100,800,31);
+    paginas.push(c);
+  }
+  return paginas;
+}
 async function abrirFactura(f, alCerrar) {
   FACT_ACTUAL = f;
   CV = null;
+  FACT_FOTOS_PAGINAS = [];
   abrirModal('Factura N° ' + num4(f.numero),
     `<div class="acc" style="justify-content:flex-start;margin:0 0 12px">
       <button class="btn" id="b-pdf" onclick="descargarPDF()" disabled>Descargar PDF</button>
@@ -1064,15 +1098,22 @@ async function abrirFactura(f, alCerrar) {
      <div class="prev" id="prev"><p class="mut">Generando factura...</p></div>`, true, alCerrar);
   try {
     CV = await facturaCanvas(f);
+    FACT_FOTOS_PAGINAS = await paginasEvidenciasFactura(f);
     const p = $('#prev');
     if (!p) return;
     p.innerHTML = '';
     p.appendChild(CV);
+    if(FACT_FOTOS_PAGINAS.length){
+      const titulo=document.createElement('h3');
+      titulo.textContent='Evidencias fotográficas ('+FACT_FOTOS_PAGINAS.length+')';
+      p.appendChild(titulo);
+      FACT_FOTOS_PAGINAS.forEach(c=>p.appendChild(c));
+    }
     $('#b-pdf').disabled = false;
     $('#b-png').disabled = false;
   } catch (e) {
     const er = $('#fa-err');
-    if (er) er.textContent = 'No se pudo generar la factura. Intenta de nuevo.';
+    if (er) er.textContent = 'No se pudo preparar la factura con sus evidencias: '+msgErr(e);
   }
 }
 
@@ -1090,18 +1131,32 @@ function bajar(blob, nombre) {
 }
 
 function descargarPNG() {
-  if (!CV) return;
-  CV.toBlob(b => { if (b) bajar(b, nombreArchivo(FACT_ACTUAL) + '.png'); }, 'image/png');
+  if(!CV)return;
+  const paginas=[CV,...FACT_FOTOS_PAGINAS];
+  if(paginas.length===1){
+    CV.toBlob(b=>{if(b)bajar(b,nombreArchivo(FACT_ACTUAL)+'.png');},'image/png');
+    return;
+  }
+  const ancho=Math.max(...paginas.map(c=>c.width));
+  const alto=paginas.reduce((n,c)=>n+Math.round(c.height*ancho/c.width),0);
+  if(alto>30000){$('#fa-err').textContent='Hay demasiadas fotos para una sola imagen PNG. Descarga el PDF, que contiene todas las evidencias.';return;}
+  const unido=document.createElement('canvas');unido.width=ancho;unido.height=alto;
+  const x=unido.getContext('2d');let y=0;
+  paginas.forEach(c=>{let h=Math.round(c.height*ancho/c.width);x.drawImage(c,0,y,ancho,h);y+=h;});
+  unido.toBlob(b=>{if(b)bajar(b,nombreArchivo(FACT_ACTUAL)+'-con-evidencias.png');},'image/png');
 }
-
 function descargarPDF() {
-  if (!CV) return;
-  if (!window.jspdf) { $('#fa-err').textContent = 'No se pudo cargar el generador de PDF. Revisa tu conexión a internet.'; return; }
-  const w = 595.28;
-  const h = w * CV.height / CV.width;
-  const pdf = new window.jspdf.jsPDF({unit:'pt', format:[w, h], orientation:'portrait'});
-  pdf.addImage(CV.toDataURL('image/png'), 'PNG', 0, 0, w, h);
-  pdf.save(nombreArchivo(FACT_ACTUAL) + '.pdf');
+  if(!CV)return;
+  if(!window.jspdf){$('#fa-err').textContent='No se pudo cargar el generador de PDF.';return;}
+  const paginas=[CV,...FACT_FOTOS_PAGINAS];
+  const w=595.28;
+  const pdf=new window.jspdf.jsPDF({unit:'pt',format:[w,w*paginas[0].height/paginas[0].width],orientation:'portrait'});
+  paginas.forEach((c,i)=>{
+    const h=w*c.height/c.width;
+    if(i)pdf.addPage([w,h],'portrait');
+    pdf.addImage(c.toDataURL('image/jpeg',0.88),'JPEG',0,0,w,h);
+  });
+  pdf.save(nombreArchivo(FACT_ACTUAL)+'.pdf');
 }
 
 /* ===================== CONFIGURACIÓN ===================== */
