@@ -1059,27 +1059,36 @@ async function paginasEvidenciasFactura(f) {
   if(!ordenes.length)return [];
   const evidencias=S.evidencias.filter(e=>ordenes.some(o=>o.id===e.orden_id));
   const paginas=[];
-  for (const evidencia of evidencias) {
-    const r=await api('fotoVer',{id:evidencia.id});
-    const img=await cargarImg(r.imagen);
-    if(!img)throw new Error('No se pudo cargar la evidencia '+(evidencia.nombre||evidencia.id));
-    const c=document.createElement('canvas');
-    c.width=800;c.height=1131;
+  const porPagina=4; // Cuatro fotos pequeñas en una sola hoja, dos columnas por dos filas.
+  for(let inicio=0; inicio<evidencias.length; inicio+=porPagina){
+    const grupo=evidencias.slice(inicio,inicio+porPagina);
+    const c=document.createElement('canvas');c.width=800;c.height=1131;
     const x=c.getContext('2d');
-    x.fillStyle='#ffffff';x.fillRect(0,0,800,1131);
-    x.fillStyle='#6d28d9';x.fillRect(0,0,800,112);
-    x.fillStyle='#fff';x.font='bold 27px sans-serif';x.fillText('EVIDENCIA FOTOGRÁFICA',42,55);
-    x.font='16px sans-serif';x.fillText('Factura #'+num4(f.numero)+' · Placa '+f.placa,42,86);
-    x.fillStyle='#1e1b2e';x.font='bold 19px sans-serif';
-    x.fillText((evidencia.etapa||'Durante').slice(0,25),42,151);
-    x.font='14px sans-serif';
-    const titulo=(evidencia.nombre||'Fotografía').slice(0,80);
-    x.fillText(titulo,42,179);
-    const maxW=716,maxH=850;
-    const factor=Math.min(maxW/img.width,maxH/img.height);
-    const iw=img.width*factor, ih=img.height*factor;
-    x.drawImage(img,(800-iw)/2,205+(maxH-ih)/2,iw,ih);
+    x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+    x.fillStyle='#6d28d9';x.fillRect(0,0,800,104);
+    x.fillStyle='#fff';x.font='bold 25px sans-serif';x.fillText('EVIDENCIAS FOTOGRÁFICAS',40,50);
+    x.font='15px sans-serif';x.fillText('Factura #'+num4(f.numero)+' · Placa '+f.placa,40,78);
+    for(let j=0;j<grupo.length;j++){
+      const evidencia=grupo[j];
+      const r=await api('fotoVer',{id:evidencia.id});
+      const img=await cargarImg(r.imagen);
+      if(!img)throw new Error('No se pudo cargar la evidencia '+(evidencia.nombre||evidencia.id));
+      const col=j%2,fila=Math.floor(j/2);
+      const left=40+col*368,top=132+fila*470,boxW=344,boxH=386;
+      x.fillStyle='#f5f3ff';x.fillRect(left,top,boxW,boxH);
+      const maxW=boxW-20,maxH=boxH-18;
+      const factor=Math.min(maxW/img.width,maxH/img.height);
+      const iw=img.width*factor,ih=img.height*factor;
+      x.drawImage(img,left+(boxW-iw)/2,top+(boxH-ih)/2,iw,ih);
+      x.fillStyle='#1e1b2e';x.font='bold 16px sans-serif';
+      x.fillText(String(evidencia.etapa||'Evidencia').slice(0,30),left,top+boxH+25);
+      x.fillStyle='#6b7280';x.font='12px sans-serif';
+      const nombre=String(evidencia.nombre||'Fotografía');
+      x.fillText(nombre.length>45?nombre.slice(0,42)+'...':nombre,left,top+boxH+45);
+    }
     x.fillStyle='#6d28d9';x.fillRect(0,1100,800,31);
+    x.fillStyle='#fff';x.font='12px sans-serif';
+    x.fillText('Evidencias · Hoja '+(Math.floor(inicio/porPagina)+1)+' de '+Math.ceil(evidencias.length/porPagina),40,1120);
     paginas.push(c);
   }
   return paginas;
@@ -1312,24 +1321,55 @@ function ordenMoto() {
   }}
   mostrarOrden();
 }
+const ORDENES_SELECCIONADAS = new Set();
+let MODO_ELIMINAR_ORDENES = false;
 function vOrdenes() {
   return `<div class="cab"><h1>Órdenes de trabajo</h1><button class="btn" onclick="abrirOrden()">+ Recibir motocicleta</button></div>
   <p class="mut">Guarda los trabajos mientras reparas. Genera la factura solo al finalizar.</p>
-  <input placeholder="Buscar placa o cliente" value="${esc(QO)}" oninput="QO=this.value;pintarOrdenes()">
+  <div class="bt mt"><button class="btn sec sm" onclick="alternarSeleccionOrdenes()">${MODO_ELIMINAR_ORDENES?'Cancelar selección':'Seleccionar varias'}</button>
+  ${MODO_ELIMINAR_ORDENES?`<button class="btn red sm" onclick="eliminarOrdenesElegidas()">Eliminar seleccionadas (<span id="num-ordenes-sel">${ORDENES_SELECCIONADAS.size}</span>)</button>`:''}</div>
+  <input class="mt" placeholder="Buscar placa o cliente" value="${esc(QO)}" oninput="QO=this.value;pintarOrdenes()">
   <div id="ordenes-lista" class="mt"></div>`;
 }
 function pintarOrdenes() {
   const box=$('#ordenes-lista');if(!box)return;
   const filtro=QO.toLowerCase();
   const items=S.ordenes.filter(o=>(o.placa+' '+o.cliente_nombre).toLowerCase().includes(filtro));
-  box.innerHTML=items.length?items.map(o=>`<div class="card cab2"><div><span class="placa">${esc(o.placa)}</span>
-  <b>${esc(o.marca)} ${esc(o.modelo)}</b><div class="mut">${esc(o.cliente_nombre)} · ${fechaCorta(o.ingreso)} · ${esc(o.estado)}</div>
-  <div class="mut">${esc(o.motivo||'Sin motivo registrado')}</div></div>
-  <div class="bt">
-    <button class="btn sec sm" onclick="abrirOrden('${o.id}')">${o.factura_id?'Ver orden':'Continuar'}</button>
-    ${o.factura_id?`<button class="btn sm" onclick="abrirFacturaOrden('${o.factura_id}')">Ver factura</button>`:o.estado==='Finalizada'?`<button class="btn sm" onclick="facturarDesdeLista('${o.id}')">Generar factura</button>`:''}
-  </div></div>`).join(''):'<div class="card vacio">Aún no hay órdenes de trabajo.</div>';
+  box.innerHTML=items.length?items.map(o=>`<div class="card cab2"><div style="display:flex;gap:10px;align-items:flex-start">
+    ${MODO_ELIMINAR_ORDENES?`<input type="checkbox" aria-label="Seleccionar orden ${esc(o.placa)}" style="width:22px;height:22px;flex:none" ${ORDENES_SELECCIONADAS.has(o.id)?'checked':''} ${o.factura_id?'disabled title="No puedes borrar órdenes facturadas"':''} onchange="seleccionarOrden('${o.id}',this.checked)">`:''}
+    <div><span class="placa">${esc(o.placa)}</span> <b>${esc(o.marca)} ${esc(o.modelo)}</b><div class="mut">${esc(o.cliente_nombre)} · ${fechaCorta(o.ingreso)} · ${esc(o.estado)}</div>
+    <div class="mut">${esc(o.motivo||'Sin motivo registrado')}</div></div></div>
+    <div class="bt">
+      <button class="btn sec sm" onclick="abrirOrden('${o.id}')">${o.factura_id?'Ver orden':'Continuar'}</button>
+      ${o.factura_id?`<button class="btn sm" onclick="abrirFacturaOrden('${o.factura_id}')">Ver factura</button>`:o.estado==='Finalizada'?`<button class="btn sm" onclick="facturarDesdeLista('${o.id}')">Generar factura</button>`:''}
+      ${!o.factura_id?`<button class="btn red sm" onclick="eliminarUnaOrden('${o.id}')">Eliminar</button>`:''}
+    </div></div>`).join(''):'<div class="card vacio">Aún no hay órdenes de trabajo.</div>';
 }
+function alternarSeleccionOrdenes() {
+  MODO_ELIMINAR_ORDENES=!MODO_ELIMINAR_ORDENES;
+  ORDENES_SELECCIONADAS.clear();render();
+}
+function seleccionarOrden(id, marcada) {
+  const o=S.ordenes.find(x=>x.id===id);
+  if(!o || o.factura_id) return;
+  if(marcada) ORDENES_SELECCIONADAS.add(id); else ORDENES_SELECCIONADAS.delete(id);
+  const el=$('#num-ordenes-sel');if(el)el.textContent=ORDENES_SELECCIONADAS.size;
+}
+async function borrarOrdenes(ids) {
+  if(!ids.length){toast('Selecciona al menos una orden.');return;}
+  const invalidas=ids.filter(id=>!S.ordenes.some(o=>o.id===id&&!o.factura_id));
+  if(invalidas.length){toast('No se pueden eliminar órdenes facturadas.');return;}
+  const aviso=`¿Eliminar definitivamente ${ids.length} ${ids.length===1?'orden':'órdenes'} de trabajo? También se enviarán sus fotos de evidencia a la papelera de Google Drive. Esta acción no se puede deshacer desde la app. Los clientes, motos y facturas se conservarán.`;
+  if(!confirm(aviso))return;
+  try {
+    await escribir('ordenesEliminar',{ids});
+    ids.forEach(id=>ORDENES_SELECCIONADAS.delete(id));
+    toast(ids.length===1?'Orden eliminada':'Órdenes eliminadas');
+    render();
+  } catch(e){toast(msgErr(e));}
+}
+function eliminarUnaOrden(id){return borrarOrdenes([id]);}
+function eliminarOrdenesElegidas(){return borrarOrdenes([...ORDENES_SELECCIONADAS]);}
 function lineaOrdenTrabajo(i,t,read) {
   return `<div class="linea" style="align-items:center"><input type="checkbox" style="width:24px;flex:none" ${t.hecho?'checked':''} ${read?'disabled':''} onchange="O.trabajos[${i}].hecho=this.checked">
   <input aria-label="Trabajo" placeholder="Trabajo / revisión" value="${esc(t.descripcion)}" ${read?'disabled':''} oninput="O.trabajos[${i}].descripcion=this.value">
@@ -1346,7 +1386,7 @@ function mostrarOrden() {
   <div class="g2"><div><label>Marca *</label><input value="${esc(O.marca)}" ${O.id||read?'disabled':''} oninput="O.marca=this.value"></div>
   <div><label>Modelo *</label><input value="${esc(O.modelo)}" ${O.id||read?'disabled':''} oninput="O.modelo=this.value"></div></div>
   <label>Problema reportado</label><textarea style="width:100%;min-height:70px" ${read?'disabled':''} oninput="O.motivo=this.value">${esc(O.motivo)}</textarea>
-  <label>Estado</label><select ${read?'disabled':''} onchange="O.estado=this.value"><option ${O.estado==='Pendiente'?'selected':''}>Pendiente</option><option ${O.estado==='En proceso'?'selected':''}>En proceso</option><option ${O.estado==='Finalizada'?'selected':''}>Finalizada</option>${read?'<option selected>Facturada</option>':''}</select>
+
   </div><div class="card mt"><h2>Checklist de trabajos</h2><div id="ot-trabajos"></div>${read?'':'<button class="btn sec sm" onclick="O.trabajos.push({descripcion:\'\',precio:0,hecho:false});pintarOtFilas()">+ Agregar trabajo</button>'}</div>
   <div class="card"><h2>Insumos y repuestos</h2><label>Valor total de insumos</label><input type="number" min="0" value="${Number(O.insumos)||0}" ${read?'disabled':''} oninput="O.insumos=this.value"><div id="ot-repuestos" class="mt"></div>
   ${read?'':'<button class="btn sec sm" onclick="O.repuestos.push({nombre:\'\',precio:0});pintarOtFilas()">+ Agregar repuesto</button>'}</div>
@@ -1362,6 +1402,7 @@ function mostrarOrden() {
     <input id="foto-camara" type="file" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this.files)">
     <p id="foto-seleccion" class="mut" style="margin:10px 0 0">Ninguna foto seleccionada</p>
   </div><button type="button" class="btn mt" id="foto-subir" onclick="subirFoto()">Guardar foto en la orden</button>`:''}</div>
+  <div class="card mt" style="border:2px solid #c4b5fd"><label for="ot-estado">Estado de la motocicleta</label>  <select id="ot-estado" ${read?'disabled':''} onchange="O.estado=this.value"><option ${O.estado==='Pendiente'?'selected':''}>Pendiente</option><option ${O.estado==='En proceso'?'selected':''}>En proceso</option><option ${O.estado==='Finalizada'?'selected':''}>Finalizada</option>${read?'<option selected>Facturada</option>':''}</select><p class="mut" style="margin:8px 0 0">Selecciona el estado y guarda la orden. Al finalizar, podrás generar la factura.</p></div>
   <p class="err" id="ot-error"></p><div class="acc"><button class="btn sec" onclick="cerrarModal()">Cerrar</button>
   ${read?`<button class="btn" onclick="abrirFacturaOrden('${O.factura_id}')">Ver factura</button>`:`<button class="btn" id="ot-guardar" onclick="guardarOrdenUI()">Guardar orden</button>${O.id&&O.estado==='Finalizada'?'<button class="btn" onclick="facturarOrdenUI()">¿Generar factura?</button>':''}`}</div>`,true);
   pintarOtFilas();
