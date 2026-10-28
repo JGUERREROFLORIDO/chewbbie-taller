@@ -149,6 +149,7 @@ input:disabled{background:#f3f4f6;color:#6b7280}
   .linea .pr{width:105px}
   .stat b{font-size:22px}
 }
+.evidencia-zona{border:2px dashed #a78bfa;border-radius:14px;padding:20px 12px;text-align:center;background:#faf5ff}.evidencia-zona.arrastrando{background:#ede9fe;border-color:#6d28d9}
 </style>
 </head>
 <body>
@@ -1219,7 +1220,15 @@ function mostrarOrden() {
   <div class="card"><h2>Observaciones</h2><textarea style="width:100%;min-height:80px" ${read?'disabled':''} oninput="O.observaciones=this.value">${esc(O.observaciones)}</textarea></div>
   <div class="card"><h2>Fotos de evidencia</h2><p class="mut">Primero guarda la orden. Las fotos se almacenan en Google Drive privado.</p>
   <div id="ot-fotos">${fotos.map(f=>`<div class="fila"><span>${esc(f.etapa)} · ${esc(f.nombre)}</span><div class="bt"><button class="btn sec sm" onclick="verFoto('${f.id}')">Ver</button>${read?'':`<button class="btn red sm" onclick="quitarFoto('${f.id}')">Quitar</button>`}</div></div>`).join('')}</div>
-  ${O.id&&!read?'<div class="g2 mt"><select id="foto-etapa"><option>Antes</option><option>Durante</option><option>Después</option></select><input id="foto-nueva" type="file" accept="image/*" capture="environment"></div><button class="btn sec sm mt" onclick="subirFoto()">Subir foto</button>':''}</div>
+  ${O.id&&!read?`<div class="mt"><label>Momento de la evidencia</label><select id="foto-etapa"><option>Antes</option><option>Durante</option><option>Después</option></select></div>
+  <div class="evidencia-zona mt" id="foto-zona" ondragover="fotoDrag(event)" ondragleave="fotoSalir(event)" ondrop="fotoSoltar(event)">
+    <p style="margin:0 0 10px">Arrastra una foto aquí o selecciónala:</p>
+    <div class="bt" style="justify-content:center"><button type="button" class="btn sec sm" onclick="document.getElementById('foto-archivo').click()">Elegir foto</button>
+    <button type="button" class="btn sec sm" onclick="document.getElementById('foto-camara').click()">Tomar foto</button></div>
+    <input id="foto-archivo" type="file" accept="image/*" style="display:none" onchange="fotoElegida(this.files)">
+    <input id="foto-camara" type="file" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this.files)">
+    <p id="foto-seleccion" class="mut" style="margin:10px 0 0">Ninguna foto seleccionada</p>
+  </div><button type="button" class="btn mt" id="foto-subir" onclick="subirFoto()">Guardar foto en la orden</button>`:''}</div>
   <p class="err" id="ot-error"></p><div class="acc"><button class="btn sec" onclick="cerrarModal()">Cerrar</button>
   ${read?`<button class="btn" onclick="abrirFacturaOrden('${O.factura_id}')">Ver factura</button>`:`<button class="btn" id="ot-guardar" onclick="guardarOrdenUI()">Guardar orden</button>${O.id&&O.estado==='Finalizada'?'<button class="btn" onclick="facturarOrdenUI()">¿Generar factura?</button>':''}`}</div>`,true);
   pintarOtFilas();
@@ -1253,11 +1262,25 @@ async function fotoReducida(archivo){
  return c.toDataURL('image/jpeg',.72);
  }finally{URL.revokeObjectURL(url);}
 }
+let FOTO_PENDIENTE = null;
+function fotoElegida(files){
+ const a=files&&files[0];if(!a)return;
+ if(!a.type.startsWith('image/')){toast('Selecciona una imagen válida.');return;}
+ FOTO_PENDIENTE=a;
+ const el=$('#foto-seleccion');if(el)el.textContent='Seleccionada: '+a.name;
+}
+function fotoDrag(e){e.preventDefault();e.stopPropagation();$('#foto-zona')?.classList.add('arrastrando');}
+function fotoSalir(e){e.preventDefault();e.stopPropagation();$('#foto-zona')?.classList.remove('arrastrando');}
+function fotoSoltar(e){
+ e.preventDefault();e.stopPropagation();$('#foto-zona')?.classList.remove('arrastrando');
+ if(e.dataTransfer?.files?.length)fotoElegida(e.dataTransfer.files);
+}
 async function subirFoto(){
- const a=$('#foto-nueva')?.files?.[0];if(!a){toast('Selecciona una fotografía.');return;}
+ const a=FOTO_PENDIENTE;if(!a){toast('Primero elige, toma o arrastra una fotografía.');return;}
+ const boton=$('#foto-subir');if(boton){boton.disabled=true;boton.textContent='Guardando foto...';}
  if(!a.type.startsWith('image/')){toast('Elige una imagen.');return;}
- try{const imagen=await fotoReducida(a);await escribir('fotoGuardar',{orden_id:O.id,imagen,nombre:a.name,etapa:$('#foto-etapa').value});O=S.ordenes.find(x=>x.id===O.id);mostrarOrden();toast('Foto guardada');}
- catch(err){$('#ot-error').textContent=msgErr(err);}
+ try{const imagen=await fotoReducida(a);await escribir('fotoGuardar',{orden_id:O.id,imagen,nombre:a.name,etapa:$('#foto-etapa').value});FOTO_PENDIENTE=null;O=S.ordenes.find(x=>x.id===O.id);mostrarOrden();toast('Foto guardada');}
+ catch(err){$('#ot-error').textContent=msgErr(err);if(boton){boton.disabled=false;boton.textContent='Guardar foto en la orden';}}
 }
 async function verFoto(id){
  const w=window.open('','_blank');if(!w){toast('Permite ventanas emergentes para ver la foto.');return;}
