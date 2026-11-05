@@ -3,7 +3,7 @@ const CHEWBBIE_SUPABASE_URL = "https://nbuxhgdjymabljzoseie.supabase.co";
 const CHEWBBIE_SUPABASE_KEY = "sb_publishable_KTa0S1P763CzrXCUWO8nPA_BXki_5MO";
 const SUPA = window.supabase.createClient(CHEWBBIE_SUPABASE_URL, CHEWBBIE_SUPABASE_KEY, {
   db: { schema: "chewbbie" },
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
 const CDB = SUPA.schema("chewbbie");
 S.citas = [];
@@ -418,51 +418,41 @@ async function entrar(ev) {
   if (!email) { error.textContent = "Escribe tu correo."; return; }
   button.disabled = true;
   try {
-    if (!OTP_ENVIADO || EMAIL_OTP !== email) {
-      const result = await SUPA.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
-      if (result.error) throw result.error;
-      OTP_ENVIADO = true;
-      EMAIL_OTP = email;
-      $("#lg-code-wrap").classList.remove("hidden");
-      $("#lg-resend").classList.remove("hidden");
-      $("#lg-change").classList.remove("hidden");
-      $("#lg-code").value = "";
-      $("#lg-code").focus();
-      $("#lg-hint").textContent = "Te enviamos un código de acceso a " + email + ". Escríbelo aquí; no necesitas contraseña.";
-      button.textContent = "Verificar código";
-    } else {
-      const code = $("#lg-code").value.trim();
-      if (!/^\d{6}$/.test(code)) throw new Error("Escribe el código de 6 dígitos que llegó a tu correo.");
-      const result = await SUPA.auth.verifyOtp({email,token:code,type:"email"});
-      if (result.error) throw result.error;
-      OTP_ENVIADO = false;
-      EMAIL_OTP = "";
-      $("#lg-code").value = "";
-      await entrarApp();
-    }
+    const result = await SUPA.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: "https://jguerreroflorido.github.io/chewbbie-taller/"
+      }
+    });
+    if (result.error) throw result.error;
+    $("#lg-hint").textContent = "Enviamos un enlace a " + email + ". Abre ese correo y pulsa el enlace para entrar. No necesitas contraseña.";
+    $("#lg-resend").classList.remove("hidden");
+    $("#lg-change").classList.remove("hidden");
+    button.textContent = "Enviar otro enlace";
   } catch (e) {
-    error.textContent = e.message || "No se pudo completar el acceso.";
+    error.textContent = e.message || "No se pudo enviar el enlace de acceso.";
   } finally {
     button.disabled = false;
-    if (OTP_ENVIADO) button.textContent = "Verificar código";
-    else button.textContent = "Enviar código de acceso";
   }
 }
 async function reenviarCodigo() {
   const email = $("#lg-email").value.trim().toLowerCase();
   if (!email) return;
-  const r = await SUPA.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
-  $("#lg-err").textContent = r.error ? r.error.message : "Enviamos otro código a tu correo.";
+  const r = await SUPA.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: "https://jguerreroflorido.github.io/chewbbie-taller/"
+    }
+  });
+  $("#lg-err").textContent = r.error ? r.error.message : "Enviamos otro enlace a tu correo.";
 }
 function reiniciarAcceso() {
-  OTP_ENVIADO = false;
-  EMAIL_OTP = "";
-  $("#lg-code-wrap").classList.add("hidden");
   $("#lg-resend").classList.add("hidden");
   $("#lg-change").classList.add("hidden");
-  $("#lg-code").value = "";
-  $("#lg-hint").textContent = "Escribe tu correo autorizado. Te enviaremos un código de acceso.";
-  $("#lg-btn").textContent = "Enviar código de acceso";
+  $("#lg-hint").textContent = "Escribe tu correo autorizado. Te enviaremos un enlace para entrar.";
+  $("#lg-btn").textContent = "Enviar enlace de acceso";
   $("#lg-err").textContent = "";
 }
 function mostrarLogin(msg) {
