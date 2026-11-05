@@ -11,6 +11,8 @@ S.equipo = [];
 S.rol = "";
 S.usuario_id = "";
 S.email = "";
+let OTP_ENVIADO = false;
+let EMAIL_OTP = "";
 let CITA_ACTUAL = null;
 let AGENDA_FECHA = hoyISO();
 
@@ -433,59 +435,6 @@ async function entrar(ev) {
     button.textContent = "Entrar";
   }
 }
-function mostrarConfiguracionPassword() {
-  $("#lg-setup").classList.remove("hidden");
-  $("#lg-btn").classList.add("hidden");
-  $("#lg-hint").textContent = "Configura tu contraseña para dejar de usar enlaces de acceso.";
-  $("#lg-err").textContent = "";
-}
-function cancelarConfiguracionPassword() {
-  $("#lg-setup").classList.add("hidden");
-  $("#lg-btn").classList.remove("hidden");
-  $("#lg-code").value = "";
-  $("#lg-new-password").value = "";
-  $("#lg-confirm-password").value = "";
-  $("#lg-hint").textContent = "Ingresa con tu cuenta autorizada del taller.";
-  $("#lg-err").textContent = "";
-}
-async function solicitarCodigoPassword() {
-  const email = $("#lg-email").value.trim().toLowerCase();
-  const error = $("#lg-err");
-  error.textContent = "";
-  if (!email) { error.textContent = "Escribe primero tu correo."; return; }
-  const button = $("#lg-send-code");
-  button.disabled = true;
-  try {
-    const result = await SUPA.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-    if (result.error) throw result.error;
-    error.textContent = "Código enviado. Escribe aquí los 6 dígitos del correo; ignora el enlace.";
-  } catch (e) {
-    error.textContent = e.message || "No se pudo enviar el código.";
-  } finally {
-    button.disabled = false;
-  }
-}
-async function guardarPasswordConCodigo() {
-  const email = $("#lg-email").value.trim().toLowerCase();
-  const token = $("#lg-code").value.trim();
-  const password = $("#lg-new-password").value;
-  const confirm = $("#lg-confirm-password").value;
-  const error = $("#lg-err");
-  error.textContent = "";
-  if (!email) { error.textContent = "Escribe tu correo."; return; }
-  if (!/^\\d{6}$/.test(token)) { error.textContent = "Escribe el código de 6 dígitos."; return; }
-  if (password.length < 8) { error.textContent = "La contraseña debe tener al menos 8 caracteres."; return; }
-  if (password !== confirm) { error.textContent = "Las contraseñas no coinciden."; return; }
-  try {
-    const verified = await SUPA.auth.verifyOtp({ email, token, type: "email" });
-    if (verified.error) throw verified.error;
-    const changed = await SUPA.auth.updateUser({ password });
-    if (changed.error) throw changed.error;
-    await entrarApp();
-  } catch (e) {
-    error.textContent = e.message || "No se pudo guardar la contraseña.";
-  }
-}
 function mostrarLogin(msg) {
   ACTIVA = false;
   cerrarModal(true);
@@ -495,8 +444,6 @@ function mostrarLogin(msg) {
   $("#lg-err").textContent = msg || "";
   document.querySelectorAll(".logo-img").forEach(i=>i.src=LOGO_DEFECTO);
   $("#lg-password").value = "";
-  $("#lg-setup").classList.add("hidden");
-  $("#lg-btn").classList.remove("hidden");
 }
 function mostrarApp() {
   $("#aviso-pantalla").classList.add("hidden");
@@ -639,7 +586,7 @@ async function cambiarEstadoCita(id,status) {
 }
 function vEquipo() {
   if(!esAdmin()) return '<div class="card vacio">Solo los administradores pueden gestionar el equipo.</div>';
-  return '<div class="cab"><h1>Equipo de trabajo</h1><button class="btn" onclick="abrirNuevoMiembro()">+ Agregar persona</button></div><p class="mut">Agrega a cada persona con su correo y define su permiso. La primera vez, cada persona configurará su contraseña con un código de verificación.</p><div id="equipo-lista"></div>';
+  return '<div class="cab"><h1>Equipo de trabajo</h1><button class="btn" onclick="abrirNuevoMiembro()">+ Agregar persona</button></div><p class="mut">Agrega a cada persona con su correo y define su permiso. Después de crearla, un administrador debe asignarle su contraseña desde Supabase.</p><div id="equipo-lista"></div>';
 }
 function pintarEquipo() {
   const box=$("#equipo-lista"); if(!box)return;
@@ -652,7 +599,7 @@ async function guardarMiembro() {
   const error=$("#eq-error");
   try {
     await escribir("teamCreate",{full_name:$("#eq-nombre").value.trim(),email:$("#eq-email").value.trim(),role:$("#eq-rol").value});
-    cerrarModal(); render(); toast("Persona agregada. En su primer acceso deberá configurar su contraseña con el código de verificación.");
+    cerrarModal(); render(); toast("Persona agregada. Ya puede entrar con su correo.");
   } catch(e){error.textContent=e.message||"No se pudo agregar la persona.";}
 }
 async function actualizarMiembro(user_id,patch) {
