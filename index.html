@@ -164,13 +164,12 @@ input:disabled{background:#f3f4f6;color:#6b7280}
   <form onsubmit="entrar(event);return false">
     <img class="logo-img" alt="Logo">
     <h1>Chewbbie Taller</h1>
-    <p class="mut">Acceso privado · Sin contraseña</p>
-    <div><label for="lg-email">Correo autorizado</label><input id="lg-email" type="email" autocomplete="email" required placeholder="tu correo"></div>
-    <p class="mut" id="lg-hint">Escribe tu correo autorizado. Te enviaremos un enlace para entrar.</p>
-    <div id="lg-code-wrap" class="hidden"><label for="lg-code">Si recibes un código de 6 dígitos, escríbelo aquí</label><input id="lg-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Código de acceso"></div>
+    <p class="mut">Acceso privado · Correo y contraseña</p>
+    <div><label for="lg-email">Correo electrónico</label><input id="lg-email" type="email" autocomplete="username" required placeholder="tu correo"></div>
+    <div><label for="lg-password">Contraseña</label><input id="lg-password" type="password" autocomplete="current-password" required placeholder="Tu contraseña"></div>
+    <p class="mut" id="lg-hint">Ingresa con tu cuenta autorizada del taller.</p>
     <p class="err" id="lg-err"></p>
-    <button class="btn" id="lg-btn" type="submit">Enviar enlace de acceso</button>
-    <div class="bt mt"><button class="btn sec sm hidden" id="lg-verify" type="button" onclick="verificarCodigo()">Verificar código</button><button class="btn sec sm hidden" id="lg-resend" type="button" onclick="reenviarCodigo()">Reenviar enlace</button><button class="btn sec sm hidden" id="lg-change" type="button" onclick="reiniciarAcceso()">Cambiar correo</button></div>
+    <button class="btn" id="lg-btn" type="submit">Entrar</button>
   </form>
 </div>
 
