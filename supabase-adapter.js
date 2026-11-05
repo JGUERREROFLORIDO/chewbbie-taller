@@ -80,7 +80,7 @@ async function cargarSnapshot(extra) {
   if (admin) {
     const [ir, iir, tr] = await Promise.all([
       CDB.from("invoices").select("*").order("created_at", { ascending:false }),
-      CDB.from("invoice_items").select("*").order("created_at"),
+      CDB.from("invoice_items").select("*"),
       SUPA.functions.invoke("chewbbie-team-admin", { body: { action:"list" } })
     ]);
     invoices = checkedData(ir, "Facturas");
