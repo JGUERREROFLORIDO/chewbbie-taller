@@ -194,12 +194,6 @@ input:disabled{background:#f3f4f6;color:#6b7280}
 <div id="modal-root"></div>
 
 <script>
-/* =====================================================
-   CONEXIÓN CON GOOGLE APPS SCRIPT
-   Pega aquí la URL de tu aplicación web (termina en /exec).
-   ===================================================== */
-const APPS_URL = 'https://script.google.com/macros/s/AKfycbzX00Wbi410RKx_TQbW7QQXE92wxOd5HBeKeG_EoXV-ucdGEi030O52ywf1_O68NE0QGA/exec';
-
 /* ===================== Utilidades ===================== */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -242,12 +236,7 @@ let FACT_FOTOS_PAGINAS = [];
 let MODO_SEL_CLIENTES=false, MODO_SEL_FACTURAS=false;
 const CLIENTES_SEL=new Set(), FACTURAS_SEL=new Set();
 
-const configurado = /^https:\/\/script\.google\.com\/.+/.test(APPS_URL);
-
-/* Solo se guarda en el dispositivo la "llave" de la sesión, nunca los datos */
-const leerToken = () => { try { return localStorage.getItem('ct_token') || ''; } catch (e) { return ''; } };
-const guardarToken = t => { try { if (t) localStorage.setItem('ct_token', t); else localStorage.removeItem('ct_token'); } catch (e) {} };
-let TOKEN = leerToken();
+let TOKEN = '';
 
 /* Logo por defecto (se dibuja con código, sin archivos) */
 function crearLogoDefecto() {
@@ -277,120 +266,6 @@ function aplicarMarca() {
   document.querySelectorAll('.logo-img').forEach(i => i.src = logoSrc());
   document.querySelectorAll('.nombre-taller').forEach(i => i.textContent = S.config.nombre_taller);
   document.title = S.config.nombre_taller;
-}
-
-/* ===================== Servidor (Google Apps Script) ===================== */
-async function api(accion, datos) {
-  let r;
-  try {
-    r = await fetch(APPS_URL, {method:'POST', body:JSON.stringify({accion, token:TOKEN, datos:datos || {}})});
-  } catch (e) {
-    throw new Error('No hay conexión con el servidor. Revisa tu internet.');
-  }
-  let j;
-  try {
-    j = await r.json();
-  } catch (e) {
-    throw new Error('El servidor no respondió bien. Revisa que la implementación esté en "Cualquier persona" y que la URL sea la correcta.');
-  }
-  if (!j.ok) {
-    if (j.sesionExpirada) {
-      TOKEN = '';
-      guardarToken('');
-      if (ACTIVA) mostrarLogin('Tu sesión expiró. Entra de nuevo.');
-    }
-    throw new Error(j.error || 'Error del servidor.');
-  }
-  return j.data;
-}
-
-function aplicar(r) {
-  S.clientes = r.clientes || [];
-  S.motos = r.motos || [];
-  S.facturas = r.facturas || [];
-  S.ordenes = r.ordenes || [];
-  S.evidencias = r.evidencias || [];
-  if (r.config) S.config = {...CFG_DEF, ...r.config};
-  if (r.usuario) S.usuario = r.usuario;
-  ULT = Date.now();
-}
-
-async function cargarDatos() { aplicar(await api('cargar')); }
-
-async function escribir(accion, datos) {
-  const r = await api(accion, datos);
-  aplicar(r);
-  return r.extra;
-}
-
-/* ===================== Acceso ===================== */
-function pantallaAviso(html) {
-  $('#login').classList.add('hidden');
-  $('#app').classList.add('hidden');
-  const p = $('#aviso-pantalla');
-  p.innerHTML = `<div class="caja">${html}</div>`;
-  p.classList.remove('hidden');
-}
-
-function mostrarLogin(msg) {
-  ACTIVA = false;
-  cerrarModal(true);
-  $('#aviso-pantalla').classList.add('hidden');
-  $('#app').classList.add('hidden');
-  $('#login').classList.remove('hidden');
-  $('#lg-err').textContent = msg || '';
-  document.querySelectorAll('.logo-img').forEach(i => i.src = LOGO_DEFECTO);
-}
-
-function mostrarApp() {
-  $('#aviso-pantalla').classList.add('hidden');
-  $('#login').classList.add('hidden');
-  $('#app').classList.remove('hidden');
-  aplicarMarca();
-  render();
-}
-
-async function entrar(ev) {
-  ev.preventDefault();
-  const email = $('#lg-email').value.trim();
-  const pass = $('#lg-pass').value;
-  const b = $('#lg-btn');
-  $('#lg-err').textContent = '';
-  b.disabled = true;
-  b.textContent = 'Entrando...';
-  try {
-    const r = await api('login', {email, password:pass});
-    TOKEN = r.token;
-    guardarToken(TOKEN);
-    $('#lg-pass').value = '';
-    await entrarApp();
-  } catch (e) {
-    $('#lg-err').textContent = msgErr(e);
-  }
-  b.disabled = false;
-  b.textContent = 'Entrar';
-}
-
-async function entrarApp() {
-  try {
-    await cargarDatos();
-  } catch (e) {
-    if (!TOKEN) return mostrarLogin('Tu sesión expiró. Entra de nuevo.');
-    return pantallaAviso(`<h2>No se pudieron cargar los datos</h2><p>${esc(msgErr(e))}</p><button class="btn" onclick="location.reload()">Reintentar</button>`);
-  }
-  ACTIVA = true;
-  $('#usuario-side').textContent = S.usuario;
-  vista = 'inicio';
-  mostrarApp();
-}
-
-function salir() {
-  api('salir').catch(() => {});
-  TOKEN = '';
-  guardarToken('');
-  S.clientes = []; S.motos = []; S.facturas = []; S.ordenes = []; S.evidencias = [];
-  S.config = {...CFG_DEF};
-  mostrarLogin();
 }
 
 /* ===================== Navegación ===================== */
@@ -1227,7 +1102,7 @@ function vConfig() {
     <button class="btn mt" id="cf-btn" onclick="guardarConfig()">Guardar cambios</button>
   </div>
   <div class="card"><h2>Copia de seguridad</h2>
-    <p class="mut">Descarga un archivo con todos tus clientes, motos y facturas. Tus datos también están en tu hoja de Google Sheets.</p>
+    <p class="mut">Descarga un archivo con todos tus clientes, motos y facturas. Tus datos se guardan en el espacio privado de Chewbbie.</p>
     <button class="btn sec" onclick="respaldo()">Descargar copia de seguridad</button>
   </div>
   <div class="card cab2" style="align-items:center">
@@ -1391,7 +1266,7 @@ async function limpiarSeleccion({ordenIds=[],facturaIds=[],clienteIds=[]}) {
     changed=before!==os.size+fs.size;
   }
   const fotos=S.evidencias.filter(e=>os.has(e.orden_id)).length;
-  const resumen=`Se eliminarán ${os.size} órdenes, ${fs.size} facturas, ${cs.size} clientes, ${ms.size} motos y ${fotos} fotografías. Las fotos pasarán a la papelera de Drive. Los datos eliminados de Sheets no se podrán restaurar desde esta aplicación.`;
+  const resumen=`Se eliminarán ${os.size} órdenes, ${fs.size} facturas, ${cs.size} clientes, ${ms.size} motos y ${fotos} fotografías. Las fotografías y los datos relacionados también se eliminarán del almacenamiento privado. Esta acción no se puede deshacer.`;
   if(!confirm(resumen+'\n\n¿Continuar?'))return;
   const respuesta=prompt('Para confirmar la eliminación definitiva, escribe ELIMINAR:');
   if(respuesta!=='ELIMINAR'){toast('Eliminación cancelada.');return;}
@@ -1538,19 +1413,7 @@ document.addEventListener('visibilitychange', async () => {
   } catch (e) {}
 });
 
-async function iniciar() {
-  document.querySelectorAll('.logo-img').forEach(i => i.src = LOGO_DEFECTO);
-  if (!configurado) {
-    return pantallaAviso(`<h2>Falta conectar el servidor</h2>
-      <p>Abre el archivo <b>index.html</b> en GitHub y pega la URL de tu aplicación web de Google Apps Script en la línea <b>const APPS_URL</b>.</p>`);
-  }
-  if (TOKEN) {
-    pantallaAviso('<h2>Cargando...</h2><p>Un momento, estamos trayendo tus datos.</p>');
-    await entrarApp();
-  } else {
-    mostrarLogin();
-  }
-}
+
 </script>
 <script src="supabase-adapter.js"></script>
 </body>
