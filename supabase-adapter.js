@@ -29,6 +29,7 @@ const unwrap = (r, label) => {
   return r.data;
 };
 const toIsoDate = (date) => date ? new Date(date).toISOString().slice(0, 10) : "";
+const localISODate = (value) => { const d=new Date(value); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const dateInputLocal = (value) => {
   const d = value ? new Date(value) : new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -394,9 +395,9 @@ async function api(accion, d) {
       unwrap(await CDB.from("invoice_items").delete().in("invoice_id",[...invoiceIds]),"Eliminar líneas de factura");
       unwrap(await CDB.from("invoices").delete().in("id",[...invoiceIds]),"Eliminar facturas");
     }
+    if (appointmentIds.size) unwrap(await CDB.from("appointments").delete().in("id",[...appointmentIds]),"Eliminar citas");
     if (orderIds.size) {
       unwrap(await CDB.from("work_order_items").delete().in("work_order_id",[...orderIds]),"Eliminar trabajos");
-      if (appointmentIds.size) unwrap(await CDB.from("appointments").delete().in("id",[...appointmentIds]),"Eliminar citas");
       unwrap(await CDB.from("work_orders").delete().in("id",[...orderIds]),"Eliminar órdenes");
     }
     if (motoIds.size) unwrap(await CDB.from("motorcycles").delete().in("id",[...motoIds]),"Eliminar motos");
@@ -535,7 +536,7 @@ function render() {
 function vInicio() {
   const today = hoyISO();
   const pending = S.ordenes.filter(o=>o.estado!=="Finalizada" && o.estado!=="Cancelada").length;
-  const todayAppointments = S.citas.filter(c=>String(c.scheduled_at).slice(0,10)===today && c.status!=="cancelled").length;
+  const todayAppointments = S.citas.filter(c=>localISODate(c.scheduled_at)===today && c.status!=="cancelled").length;
   const cards = '<div class="g3">'+stat("Órdenes activas",pending)+stat("Citas de hoy",todayAppointments)+stat("Clientes registrados",S.clientes.length)+'</div>';
   const next = S.citas.filter(c=>new Date(c.scheduled_at)>=new Date() && c.status!=="cancelled").sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at)).slice(0,5);
   const appt = '<div class="card"><h2>Próximas citas</h2>'+(next.length?next.map(c=>'<div class="fila" onclick="ir(\'agenda\')"><div><b>'+esc(c.customer_name)+'</b><div class="mut">'+new Date(c.scheduled_at).toLocaleString("es-CO")+' · '+esc(c.reason)+'</div></div><span class="badge">'+esc(c.status)+'</span></div>').join(""):'<p class="mut">No hay citas próximas.</p>')+'</div>';
@@ -567,7 +568,7 @@ function vAgenda() {
 }
 function pintarAgenda() {
   const box=$("#agenda-lista"); if(!box)return;
-  const rows=S.citas.filter(c=>String(c.scheduled_at).slice(0,10)===AGENDA_FECHA).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at));
+  const rows=S.citas.filter(c=>localISODate(c.scheduled_at)===AGENDA_FECHA).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at));
   box.innerHTML=rows.length?rows.map(c=>{
     const date=new Date(c.scheduled_at);
     const statusLabel=({scheduled:"Programada",confirmed:"Confirmada",arrived:"En el taller",completed:"Atendida",cancelled:"Cancelada",no_show:"No asistió"})[c.status]||c.status;
@@ -596,6 +597,7 @@ async function guardarCitaUI() {
     assigned_to:$("#ag-responsable").value||null,reason:$("#ag-motivo").value.trim(),
     status:CITA_ACTUAL.status||"scheduled"
   };
+  if(!data.scheduled_at){error.textContent="Elige la fecha y hora de la cita.";return;}
   try { await escribir("citaGuardar",data); cerrarModal(); render(); toast("Cita guardada."); }
   catch(e){error.textContent=e.message||"No se pudo guardar la cita.";}
 }
