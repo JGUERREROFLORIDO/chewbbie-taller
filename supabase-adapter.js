@@ -113,6 +113,7 @@ async function cargarSnapshot(extra) {
         performed_by:x.performed_by || "", performed_by_name:x.performed_by_name || "", completed_at:x.completed_at || ""
       })),
       insumos:its.filter(x=>x.item_type==="supply").reduce((n,x)=>n+(Number(x.line_total)||Number(x.unit_price)||0),0),
+      insumos_id:its.find(x=>x.item_type==="supply")?.id || "",
       repuestos:its.filter(x=>x.item_type==="part" || x.item_type==="other").map(x=>({id:x.id,nombre:x.description,precio:Number(x.unit_price)||0})),
       observaciones:o.diagnosis || o.work_performed || "", factura_id:linkedInvoice?.id || (o.status==="delivered" ? "__facturada__" : ""),
       assigned_to:o.assigned_to || "", actualizado_en:o.updated_at || o.created_at || ""
@@ -268,7 +269,7 @@ async function api(accion, d) {
       });
     });
     itemRows.push({
-      id:(d._supply_id || crypto.randomUUID()), work_order_id:order.id, item_type:"supply",
+      id:(d.insumos_id || d._supply_id || crypto.randomUUID()), work_order_id:order.id, item_type:"supply",
       description:"Insumos", quantity:1, unit_price:Math.max(0,Number(d.insumos)||0), created_by:user.id
     });
     unwrap(await CDB.from("work_order_items").upsert(itemRows,{onConflict:"id"}), "Guardar trabajos de la orden");
