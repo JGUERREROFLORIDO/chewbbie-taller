@@ -386,6 +386,7 @@ async function api(accion, d) {
       const inv = unwrap(await CDB.from("invoices").select("id").in("work_order_id",[...orderIds]),"Buscar facturas de órdenes");
       inv.forEach(x=>invoiceIds.add(x.id));
     }
+    const invoiceOrders = invoiceIds.size ? unwrap(await CDB.from("invoices").select("work_order_id").in("id",[...invoiceIds]),"Buscar órdenes facturadas") : [];
     const photos = orderIds.size ? unwrap(await CDB.from("work_order_photos").select("id,storage_path").in("work_order_id",[...orderIds]),"Buscar fotos") : [];
     if (photos.length) {
       const rm = await SUPA.storage.from("chewbbie-evidence").remove(photos.map(x=>x.storage_path));
@@ -395,6 +396,8 @@ async function api(accion, d) {
     if (invoiceIds.size) {
       unwrap(await CDB.from("invoice_items").delete().in("invoice_id",[...invoiceIds]),"Eliminar líneas de factura");
       unwrap(await CDB.from("invoices").delete().in("id",[...invoiceIds]),"Eliminar facturas");
+      const survivingOrders = [...new Set(invoiceOrders.map(x=>x.work_order_id).filter(id=>id&&!orderIds.has(id)))];
+      if (survivingOrders.length) unwrap(await CDB.from("work_orders").update({status:"ready",delivered_at:null,updated_by:user.id,updated_at:now}).in("id",survivingOrders),"Reabrir órdenes");
     }
     if (appointmentIds.size) unwrap(await CDB.from("appointments").delete().in("id",[...appointmentIds]),"Eliminar citas");
     if (orderIds.size) {
@@ -574,7 +577,7 @@ function pintarAgenda() {
     const date=new Date(c.scheduled_at);
     const statusLabel=({scheduled:"Programada",confirmed:"Confirmada",arrived:"En el taller",completed:"Atendida",cancelled:"Cancelada",no_show:"No asistió"})[c.status]||c.status;
     const worker=S.equipo.find(x=>x.user_id===c.assigned_to);
-    return '<div class="card cab2"><div><div class="nom">'+date.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})+' · '+esc(c.customer_name)+'</div><div class="mut">'+esc(c.customer_phone||"Sin teléfono")+' · '+Number(c.estimated_minutes||60)+' min</div><div>'+esc(c.reason)+'</div><div class="mut">'+(worker?'Responsable: '+esc(worker.full_name):"Sin responsable asignado")+' · '+statusLabel+'</div></div><div class="bt"><button class="btn sec sm" onclick="abrirCita(\''+c.id+'\')">Editar</button>'+(c.status!=="confirmed"&&c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'confirmed\')">Confirmar</button>':"")+(c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sec sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'completed\')">Atendida</button>':"")+(c.status!=="cancelled"&&c.status!=="completed"?'<button class="btn red sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'cancelled\')">Cancelar</button>':"")+'</div></div>';
+    return '<div class="card cab2"><div><div class="nom">'+date.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})+' · '+esc(c.customer_name)+'</div><div class="mut">'+esc(c.customer_phone||"Sin teléfono")+' · '+Number(c.estimated_minutes||60)+' min</div><div>'+esc(c.reason)+'</div><div class="mut">'+(worker?'Responsable: '+esc(worker.full_name):(c.assigned_to?"Asignada a otro miembro":"Sin responsable asignado"))+' · '+statusLabel+'</div></div><div class="bt"><button class="btn sec sm" onclick="abrirCita(\''+c.id+'\')">Editar</button>'+(c.status!=="confirmed"&&c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'confirmed\')">Confirmar</button>':"")+(c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sec sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'completed\')">Atendida</button>':"")+(c.status!=="cancelled"&&c.status!=="completed"?'<button class="btn red sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'cancelled\')">Cancelar</button>':"")+'</div></div>';
   }).join(""):'<div class="card vacio">No hay citas para esta fecha.</div>';
 }
 function abrirCita(id) {
