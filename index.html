@@ -12,6 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{--p:#6d28d9;--pd:#5b21b6;--pl:#f5f3ff;--pb:#ddd6fe;--tx:#1e1b2e;--mut:#6b7280;--ok:#15803d;--err:#dc2626}
@@ -141,7 +142,7 @@ input:disabled{background:#f3f4f6;color:#6b7280}
   .top .marca img{width:36px;height:36px}
   .top button{border:0;background:none;color:var(--p);font-weight:700}
   main{padding:16px 14px 100px}
-  .bottom{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--pb);z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+  .bottom{display:grid;grid-template-columns:repeat(7,1fr);position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--pb);z-index:30;padding-bottom:env(safe-area-inset-bottom)}
   .bottom button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;font-size:10.5px;font-weight:600;color:#9ca3af}
   .bottom button.on{color:var(--p)}
   .g3,.gr{grid-template-columns:1fr}
@@ -163,11 +164,13 @@ input:disabled{background:#f3f4f6;color:#6b7280}
   <form onsubmit="entrar(event);return false">
     <img class="logo-img" alt="Logo">
     <h1>Chewbbie Taller</h1>
-    <p class="mut">Acceso privado</p>
-    <div><label for="lg-email">Correo</label><input id="lg-email" type="email" autocomplete="email" required></div>
-    <div><label for="lg-pass">Contraseña</label><input id="lg-pass" type="password" autocomplete="current-password" required></div>
+    <p class="mut">Acceso privado · Sin contraseña</p>
+    <div><label for="lg-email">Correo autorizado</label><input id="lg-email" type="email" autocomplete="email" required placeholder="tu correo"></div>
+    <div id="lg-code-wrap" class="hidden"><label for="lg-code">Código de acceso</label><input id="lg-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 dígitos"></div>
+    <p class="mut" id="lg-hint">Escribe tu correo autorizado. Te enviaremos un código de acceso.</p>
     <p class="err" id="lg-err"></p>
-    <button class="btn" id="lg-btn" type="submit">Entrar</button>
+    <button class="btn" id="lg-btn" type="submit">Enviar código de acceso</button>
+    <div class="bt mt"><button class="btn sec sm hidden" id="lg-resend" type="button" onclick="reenviarCodigo()">Reenviar código</button><button class="btn sec sm hidden" id="lg-change" type="button" onclick="reiniciarAcceso()">Cambiar correo</button></div>
   </form>
 </div>
 
@@ -1427,7 +1430,7 @@ function mostrarOrden() {
   <div class="card"><h2>Insumos y repuestos</h2><label>Valor total de insumos</label><input type="number" min="0" value="${Number(O.insumos)||0}" ${read?'disabled':''} oninput="O.insumos=this.value"><div id="ot-repuestos" class="mt"></div>
   ${read?'':'<button class="btn sec sm" onclick="O.repuestos.push({nombre:\'\',precio:0});pintarOtFilas()">+ Agregar repuesto</button>'}</div>
   <div class="card"><h2>Observaciones</h2><textarea style="width:100%;min-height:80px" ${read?'disabled':''} oninput="O.observaciones=this.value">${esc(O.observaciones)}</textarea></div>
-  <div class="card"><h2>Fotos de evidencia</h2><p class="mut">Primero guarda la orden. Las fotos se almacenan en Google Drive privado.</p>
+  <div class="card"><h2>Fotos de evidencia</h2><p class="mut">Primero guarda la orden. Las fotos se almacenan en el espacio privado de Chewbbie.</p>
   <div id="ot-fotos">${fotos.map(f=>`<div class="fila"><span>${esc(f.etapa)} · ${esc(f.nombre)}</span><div class="bt"><button class="btn sec sm" onclick="verFoto('${f.id}')">Ver</button>${read?'':`<button class="btn red sm" onclick="quitarFoto('${f.id}')">Quitar</button>`}</div></div>`).join('')}</div>
   ${O.id&&!read?`<div class="mt"><label>Momento de la evidencia</label><select id="foto-etapa"><option>Antes</option><option>Durante</option><option>Después</option></select></div>
   <div class="evidencia-zona mt" id="foto-zona" ondragover="fotoDrag(event)" ondragleave="fotoSalir(event)" ondrop="fotoSoltar(event)">
@@ -1549,7 +1552,7 @@ async function iniciar() {
     mostrarLogin();
   }
 }
-iniciar();
 </script>
+<script src="supabase-adapter.js"></script>
 </body>
 </html>
