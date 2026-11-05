@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chewbbie Taller · Panel privado</title>
+<link rel="icon" href="/icon.svg">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--ink:#201a2b;--muted:#82798f;--purple:#7652b5;--purple2:#eee7fa;--line:#eeeaf3;--bg:#f7f5fa;--white:#fff;--green:#20866b;--amber:#a76a19;--red:#b74757;--shadow:0 12px 40px #34234d0d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15% 15%,#e8dcf9,transparent 35%),radial-gradient(circle at 85% 80%,#f5e5f0,transparent 34%),var(--bg)}
+.auth-card{width:min(420px,100%);background:#fff;padding:34px;border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:19px}.brand img{width:42px;height:42px;border-radius:13px}.auth h1{font-size:25px;margin:26px 0 4px}.muted{color:var(--muted)}.field{display:grid;gap:6px;margin:14px 0}.field label{font-size:12px;font-weight:700;color:#5f566d}.field input,.field select,.field textarea,.search{width:100%;border:1px solid #e5dfed;border-radius:11px;background:white;padding:11px 12px;color:var(--ink);outline:none}.field input:focus,.field select:focus,.field textarea:focus,.search:focus{border-color:var(--purple);box-shadow:0 0 0 3px #7652b51a}
+.btn{border:0;border-radius:11px;background:var(--purple);color:#fff;padding:11px 16px;font-weight:700}.btn:hover{filter:brightness(.96)}.btn:disabled{opacity:.55;cursor:wait}.btn.secondary{background:var(--purple2);color:var(--purple)}.btn.ghost{background:#f4f1f8;color:#61576e}.btn.small{padding:7px 10px;font-size:12px}.error{color:var(--red);min-height:20px;font-size:12px}.layout{min-height:100vh;display:grid;grid-template-columns:250px 1fr}.side{background:#fff;border-right:1px solid var(--line);padding:24px 16px;display:flex;flex-direction:column;gap:28px}.side .brand{padding:0 10px}.eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#a49aaf;font-weight:800;padding:0 12px}.nav{display:grid;gap:5px}.nav button{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;color:#71687d;font-weight:650;display:flex;align-items:center;gap:11px}.nav button.active{background:var(--purple2);color:var(--purple)}.nav button:hover{background:#f7f4fa}.userbox{margin-top:auto;padding:14px;background:#faf8fc;border:1px solid var(--line);border-radius:14px}.userbox strong{display:block}.role{font-size:11px;color:var(--muted)}.main{min-width:0;padding:28px clamp(18px,4vw,54px)}.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:28px}.topbar h1{font-size:26px;margin:0}.top-actions{display:flex;gap:8px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.stat,.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}.stat small{display:block;color:var(--muted);font-weight:650}.stat strong{display:block;font-size:27px;margin-top:6px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:24px 0 12px}.section-head h2{font-size:16px;margin:0}.panel{margin-top:18px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:540px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line)}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#948a9f}td{font-size:13px}tbody tr:last-child td{border-bottom:0}.empty{padding:34px 16px;text-align:center;color:var(--muted)}.pill{display:inline-flex;padding:4px 9px;border-radius:99px;background:#f1edf7;color:#65577b;font-size:11px;font-weight:700}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.toolbar .search{max-width:320px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}.form-grid .full{grid-column:1/-1}.notice{padding:12px 14px;border-radius:12px;background:#f6f1fc;color:#65517f;font-size:12px}.mobile-brand{display:none}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.side{display:none}.main{padding:20px 16px 88px}.mobile-brand{display:flex}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.topbar{align-items:flex-start}.topbar h1{font-size:22px}.bottom-nav{display:flex!important;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);justify-content:space-around;padding:9px 4px calc(9px + env(safe-area-inset-bottom));z-index:5}.bottom-nav button{border:0;background:none;color:#776d83;font-size:10px;display:grid;justify-items:center;gap:2px}.bottom-nav button.active{color:var(--purple);font-weight:800}}
+.bottom-nav{display:none}
+</style>
+</head>
+<body>
+<section id="auth" class="auth">
+ <form id="loginForm" class="auth-card">
+  <div class="brand"><img src="/icon-192.png" alt=""><span>Chewbbie Taller</span></div>
+  <h1>Bienvenido de nuevo</h1><p class="muted">Acceso privado para el equipo del taller.</p>
+  <div class="field"><label for="email">Correo electrónico</label><input id="email" type="email" autocomplete="username" required placeholder="tu@correo.com"></div>
+  <div class="field"><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña"></div>
+  <p id="loginError" class="error"></p><button id="loginButton" class="btn" style="width:100%">Entrar al taller</button>
+  <p class="muted" style="font-size:11px;margin:16px 0 0">Si no tienes usuario, pídele al administrador que cree tu acceso.</p>
+ </form>
+</section>
+<section id="app" class="layout hidden">
+ <aside class="side">
+  <div class="brand"><img src="/icon-192.png" alt=""><span>Chewbbie Taller</span></div>
+  <div><div class="eyebrow">Espacio de trabajo</div><nav class="nav" id="sideNav"></nav></div>
+  <div class="userbox"><strong id="sideName">Equipo</strong><span id="sideRole" class="role"></span><button id="logout" class="btn ghost small" style="width:100%;margin-top:12px">Cerrar sesión</button></div>
+ </aside>
+ <main class="main">
+  <div class="topbar"><div><div class="brand mobile-brand"><img src="/icon-192.png" alt=""><span>Chewbbie Taller</span></div><h1 id="pageTitle">Resumen</h1><div id="pageSubtitle" class="muted">Todo lo que pasa en el taller.</div></div><div class="top-actions"><button class="btn secondary" id="refresh">Actualizar</button></div></div>
+  <div id="content"><div class="panel">Cargando información…</div></div>
+ </main>
+ <nav class="bottom-nav" id="bottomNav"></nav>
+</section>
+<script>
+const SUPABASE_URL='https://nbuxhgdjymabljzoseie.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_KTa0S1P763CzrXCUWO8nPA_BXki_5MO';
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{db:{schema:'chewbbie'},auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(n)||0);
+let user=null, profile=null, page='home', customers=[], motorcycles=[], appointments=[], orders=[], invoices=[];
+const NAV=[['home','Resumen','⌂'],['customers','Clientes','♙'],['agenda','Agenda','▦'],['orders','Órdenes de trabajo','⚙'],['billing','Facturación','$'],['team','Equipo','♧']];
+function allowed(){return profile?.active===true}
+function isAdmin(){return profile?.role==='admin'}
+function navItems(){return NAV.filter(([id])=>!['billing','team'].includes(id)||isAdmin())}
+function setPage(id){page=id;render()}
+function navHtml(){return navItems().map(([id,label,ico])=>'<button class="'+(page===id?'active':'')+'" data-page="'+id+'"><span>'+ico+'</span>'+label+'</button>').join('')}
+function bindNav(){['#sideNav','#bottomNav'].forEach(sel=>$(sel).innerHTML=navHtml());document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)))}
+function showApp(){ $('#auth').classList.add('hidden');$('#app').classList.remove('hidden');$('#sideName').textContent=profile.full_name||user.email;$('#sideRole').textContent=isAdmin()?'Administrador':'Trabajador';render()}
+function showAuth(message=''){ $('#app').classList.add('hidden');$('#auth').classList.remove('hidden');$('#loginError').textContent=message}
+async function loadData(){
+ const results=await Promise.all([
+  db.from('customers').select('id,full_name,phone,email,document_number,address,notes,created_at').order('full_name'),
+  db.from('motorcycles').select('id,customer_id,plate,make,model,model_year,color,mileage,created_at').order('plate'),
+  db.from('appointments').select('id,customer_id,motorcycle_id,customer_name,customer_phone,scheduled_at,estimated_minutes,reason,status,assigned_to').order('scheduled_at'),
+  db.from('work_orders').select('id,order_number,customer_id,motorcycle_id,status,complaint,diagnosis,work_performed,received_at,promised_at,assigned_to,completed_at,delivered_at').order('received_at',{ascending:false}),
+  isAdmin()?db.from('invoices').select('id,invoice_number,customer_id,issued_at,status,total,payment_method').order('issued_at',{ascending:false}):Promise.resolve({data:[],error:null})
+ ]);
+ for(const r of results)if(r.error)throw r.error;
+ [customers,motorcycles,appointments,orders,invoices]=results.map(r=>r.data||[]);
+}
+function title(t,s){$('#pageTitle').textContent=t;$('#pageSubtitle').textContent=s}
+function render(){
+ bindNav();
+ if(page==='home')homeView();
+ if(page==='customers')customersView();
+ if(page==='agenda')agendaView();
+ if(page==='orders')ordersView();
+ if(page==='billing')billingView();
+ if(page==='team')teamView();
+}
+function homeView(){
+ title('Resumen','Vista general del trabajo del taller.');
+ const today=new Date().toISOString().slice(0,10);
+ const todayAppts=appointments.filter(a=>a.scheduled_at?.slice(0,10)===today);
+ const active=orders.filter(o=>!['delivered','cancelled','completed'].includes(o.status));
+ $('#content').innerHTML='<div class="grid">'+stat('Clientes registrados',customers.length,'♙')+stat('Motocicletas',motorcycles.length,'◉')+stat('Citas para hoy',todayAppts.length,'▦')+stat('Órdenes activas',active.length,'⚙')+'</div><div class="section-head"><h2>Próximas citas</h2><button class="btn secondary small" data-go="agenda">Ver agenda</button></div><div class="panel">'+appointmentTable(appointments.filter(a=>new Date(a.scheduled_at)>=new Date()).slice(0,6))+'</div><div class="section-head"><h2>Órdenes recientes</h2><button class="btn secondary small" data-go="orders">Ver órdenes</button></div><div class="panel">'+orderTable(orders.slice(0,6))+'</div>';
+ document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>setPage(b.dataset.go));
+}
+function stat(label,value){return '<div class="stat"><small>'+label+'</small><strong>'+value+'</strong></div>'}
+function panelTable(html){return '<div class="panel table-wrap">'+html+'</div>'}
+function empty(text){return '<div class="empty">'+text+'</div>'}
+function customerName(id){return customers.find(c=>c.id===id)?.full_name||'Cliente sin ficha'}
+function motorcycleLabel(id){const m=motorcycles.find(x=>x.id===id);return m?m.plate+' · '+(m.make||'')+' '+(m.model||''):''}
+function appointmentTable(rows){if(!rows.length)return empty('No hay citas registradas todavía.');return '<div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Motocicleta</th><th>Motivo</th><th>Estado</th></tr></thead><tbody>'+rows.map(a=>'<tr><td>'+new Date(a.scheduled_at).toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'})+'</td><td>'+esc(a.customer_name)+'</td><td>'+esc(motorcycleLabel(a.motorcycle_id)||'—')+'</td><td>'+esc(a.reason||'—')+'</td><td><span class="pill">'+esc(a.status)+'</span></td></tr>').join('')+'</tbody></table></div>'}
+function orderTable(rows){if(!rows.length)return empty('Todavía no hay órdenes de trabajo.');return '<div class="table-wrap"><table><thead><tr><th>Número</th><th>Cliente</th><th>Moto</th><th>Ingreso</th><th>Estado</th></tr></thead><tbody>'+rows.map(o=>'<tr><td>#'+o.order_number+'</td><td>'+esc(customerName(o.customer_id))+'</td><td>'+esc(motorcycleLabel(o.motorcycle_id))+'</td><td>'+new Date(o.received_at).toLocaleDateString('es-CO')+'</td><td><span class="pill">'+esc(o.status)+'</span></td></tr>').join('')+'</tbody></table></div>'}
+function customersView(){
+ title('Clientes','Directorio de clientes y sus motocicletas.');
+ $('#content').innerHTML='<div class="toolbar"><input class="search" id="customerSearch" placeholder="Buscar por nombre o teléfono"><button class="btn" id="addCustomer">+ Nuevo cliente</button></div><div class="panel" id="customerList"></div>';
+ $('#addCustomer').onclick=customerForm;$('#customerSearch').oninput=paintCustomers;paintCustomers();
+}
+function paintCustomers(){
+ const q=($('#customerSearch')?.value||'').toLowerCase();
+ const rows=customers.filter(c=>(c.full_name+' '+(c.phone||'')).toLowerCase().includes(q));
+ $('#customerList').innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Motocicletas</th><th></th></tr></thead><tbody>'+rows.map(c=>'<tr><td><strong>'+esc(c.full_name)+'</strong><div class="muted">'+esc(c.email||'')+'</div></td><td>'+esc(c.phone||'—')+'</td><td>'+motorcycles.filter(m=>m.customer_id===c.id).map(m=>'<span class="pill">'+esc(m.plate)+'</span>').join(' ')+'</td><td><button class="btn secondary small" data-moto="'+c.id+'">+ Moto</button></td></tr>').join('')+'</tbody></table></div>':empty('No hay clientes que coincidan con la búsqueda.');
+ document.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>motorcycleForm(b.dataset.moto));
+}
+function customerForm(){
+ $('#content').insertAdjacentHTML('beforeend','<div class="panel" id="customerFormPanel"><div class="section-head"><h2>Registrar cliente</h2><button class="btn ghost small" id="cancelCustomer">Cerrar</button></div><form id="newCustomer" class="form-grid"><div class="field"><label>Nombre completo *</label><input name="full_name" required></div><div class="field"><label>Teléfono</label><input name="phone" inputmode="tel"></div><div class="field"><label>Correo</label><input name="email" type="email"></div><div class="field"><label>Documento</label><input name="document_number"></div><div class="field full"><label>Dirección</label><input name="address"></div><div class="field full"><label>Notas</label><textarea name="notes" rows="2"></textarea></div><div class="full"><p class="error" id="customerErr"></p><button class="btn">Guardar cliente</button></div></form></div>');
+ $('#cancelCustomer').onclick=()=>$('#customerFormPanel').remove();
+ $('#newCustomer').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button[type=submit],button:not(#cancelCustomer)');b.disabled=true;try{const d=Object.fromEntries(new FormData(e.target));const {error}=await db.from('customers').insert({...d,created_by:user.id,updated_by:user.id});if(error)throw error;await refreshData();customersView()}catch(err){$('#customerErr').textContent=err.message;b.disabled=false}};
+}
+function motorcycleForm(customerId){
+ const c=customers.find(x=>x.id===customerId);
+ $('#content').insertAdjacentHTML('beforeend','<div class="panel" id="motoFormPanel"><div class="section-head"><h2>Agregar motocicleta · '+esc(c?.full_name||'')+'</h2><button class="btn ghost small" id="cancelMoto">Cerrar</button></div><form id="newMoto" class="form-grid"><div class="field"><label>Placa *</label><input name="plate" required maxlength="8" style="text-transform:uppercase"></div><div class="field"><label>Marca</label><input name="make"></div><div class="field"><label>Modelo</label><input name="model"></div><div class="field"><label>Año</label><input name="model_year" type="number" min="1950" max="2100"></div><div class="field"><label>Color</label><input name="color"></div><div class="field"><label>Kilometraje</label><input name="mileage" type="number" min="0"></div><div class="full"><p class="error" id="motoErr"></p><button class="btn">Guardar motocicleta</button></div></form></div>');
+ $('#cancelMoto').onclick=()=>$('#motoFormPanel').remove();
+ $('#newMoto').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button');b.disabled=true;const d=Object.fromEntries(new FormData(e.target));d.plate=d.plate.toUpperCase().replace(/[^A-Z0-9]/g,'');d.customer_id=customerId;d.created_by=user.id;d.updated_by=user.id;['model_year','mileage'].forEach(k=>d[k]=d[k]?Number(d[k]):null);try{const {error}=await db.from('motorcycles').insert(d);if(error)throw error;await refreshData();customersView()}catch(err){$('#motoErr').textContent=err.message;b.disabled=false}};
+}
+function agendaView(){
+ title('Agenda','Programa y consulta las citas del taller.');
+ $('#content').innerHTML='<div class="toolbar"><button class="btn" id="addAppointment">+ Agendar cita</button></div><div class="panel" style="margin-top:16px">'+appointmentTable(appointments)+'</div>';
+ $('#addAppointment').onclick=appointmentForm;
+}
+function appointmentForm(){
+ const options=customers.map(c=>'<option value="'+c.id+'">'+esc(c.full_name)+'</option>').join('');
+ $('#content').insertAdjacentHTML('beforeend','<div class="panel" id="apptFormPanel"><div class="section-head"><h2>Nueva cita</h2><button class="btn ghost small" id="cancelAppt">Cerrar</button></div><form id="newAppt" class="form-grid"><div class="field"><label>Cliente existente</label><select name="customer_id" id="apptCustomer"><option value="">Sin ficha de cliente</option>'+options+'</select></div><div class="field"><label>Nombre del cliente *</label><input name="customer_name" id="apptName" required></div><div class="field"><label>Teléfono</label><input name="customer_phone" id="apptPhone"></div><div class="field"><label>Motocicleta</label><select name="motorcycle_id" id="apptMoto"><option value="">Seleccionar después</option></select></div><div class="field"><label>Fecha y hora *</label><input name="scheduled_at" type="datetime-local" required></div><div class="field"><label>Duración estimada (minutos)</label><input name="estimated_minutes" type="number" min="15" step="15" value="60"></div><div class="field full"><label>Motivo de la cita</label><textarea name="reason" rows="2"></textarea></div><div class="full"><p class="error" id="apptErr"></p><button class="btn">Guardar cita</button></div></form></div>');
+ $('#cancelAppt').onclick=()=>$('#apptFormPanel').remove();
+ $('#apptCustomer').onchange=()=>{const c=customers.find(x=>x.id===$('#apptCustomer').value);$('#apptName').value=c?.full_name||'';$('#apptPhone').value=c?.phone||'';$('#apptMoto').innerHTML='<option value="">Seleccionar después</option>'+motorcycles.filter(m=>m.customer_id===c?.id).map(m=>'<option value="'+m.id+'">'+esc(m.plate+' · '+(m.make||'')+' '+(m.model||''))+'</option>').join('')};
+ $('#newAppt').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button');b.disabled=true;const d=Object.fromEntries(new FormData(e.target));d.customer_id=d.customer_id||null;d.motorcycle_id=d.motorcycle_id||null;d.estimated_minutes=Number(d.estimated_minutes)||60;d.scheduled_at=new Date(d.scheduled_at).toISOString();d.created_by=user.id;d.updated_by=user.id;try{const {error}=await db.from('appointments').insert(d);if(error)throw error;await refreshData();agendaView()}catch(err){$('#apptErr').textContent=err.message;b.disabled=false}};
+}
+function ordersView(){title('Órdenes de trabajo','Seguimiento de motocicletas recibidas en el taller.');$('#content').innerHTML='<div class="notice">En esta primera entrega las órdenes se muestran en modo consulta. En el siguiente paso conectaremos el formulario de recepción, asignación al mecánico, repuestos, mano de obra y evidencias fotográficas.</div><div class="panel" style="margin-top:16px">'+orderTable(orders)+'</div>'}
+function billingView(){title('Facturación','Acceso restringido a administradores.');$('#content').innerHTML='<div class="notice">La facturación está protegida por permisos de administrador. Los trabajadores no pueden consultar ni modificar facturas desde la base de datos.</div><div class="grid" style="margin-top:16px">'+stat('Facturas registradas',invoices.length)+stat('Total facturado',money(invoices.reduce((s,i)=>s+Number(i.total||0),0)))+'</div><div class="panel" style="margin-top:16px">'+(invoices.length?'<div class="table-wrap"><table><thead><tr><th>Factura</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead><tbody>'+invoices.map(i=>'<tr><td>'+esc(i.invoice_number)+'</td><td>'+new Date(i.issued_at).toLocaleDateString('es-CO')+'</td><td>'+esc(i.status)+'</td><td>'+money(i.total)+'</td></tr>').join('')+'</tbody></table></div>':empty('Aún no hay facturas.'))+'</div>'}
+async function teamView(){title('Equipo','Usuarios y permisos de acceso.');const {data,error}=await db.from('profiles').select('user_id,full_name,role,active,created_at').order('full_name');if(error){$('#content').innerHTML='<div class="panel">'+esc(error.message)+'</div>';return}$('#content').innerHTML='<div class="notice">Los administradores pueden consultar el equipo. La creación de usuarios se mantiene controlada desde Supabase Auth para no exponer permisos de administración en el navegador.</div>'+panelTable(data.length?'<table><thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th></tr></thead><tbody>'+data.map(p=>'<tr><td>'+esc(p.full_name)+'</td><td><span class="pill">'+(p.role==='admin'?'Administrador':'Trabajador')+'</span></td><td>'+(p.active?'Activo':'Inactivo')+'</td></tr>').join('')+'</tbody></table>':empty('No hay usuarios registrados.'))}
+async function refreshData(){await loadData();render()}
+$('#loginForm').onsubmit=async e=>{e.preventDefault();const b=$('#loginButton');b.disabled=true;b.textContent='Validando…';$('#loginError').textContent='';const {data,error}=await db.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});if(error){showAuth('No pudimos iniciar sesión. Revisa el correo y la contraseña.');b.disabled=false;b.textContent='Entrar al taller';return}user=data.user;try{await startSession()}catch(err){await db.auth.signOut();showAuth(err.message);b.disabled=false;b.textContent='Entrar al taller'}};
+async function startSession(){const {data,error}=await db.from('profiles').select('user_id,full_name,role,active').eq('user_id',user.id).single();if(error)throw error;if(!data.active)throw new Error('Tu usuario está desactivado. Contacta a un administrador.');profile=data;await loadData();showApp()}
+async function refresh(){const b=$('#refresh');b.disabled=true;try{await refreshData()}catch(e){alert('No se pudo actualizar: '+e.message)}b.disabled=false}
+$('#refresh').onclick=refresh;$('#logout').onclick=async()=>{await db.auth.signOut();user=null;profile=null;showAuth()};
+(async()=>{const {data}=await db.auth.getSession();if(data.session){user=data.session.user;try{await startSession()}catch(e){await db.auth.signOut();showAuth('No fue posible validar tu usuario: '+e.message)}}})();
+</script>
+</body></html>
