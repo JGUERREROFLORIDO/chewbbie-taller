@@ -365,11 +365,20 @@ async function api(accion, d) {
     const customerIds = new Set(d.clienteIds||[]);
     const motos = customerIds.size ? unwrap(await CDB.from("motorcycles").select("id").in("customer_id",[...customerIds]),"Buscar motos") : [];
     const motoIds = new Set(motos.map(x=>x.id));
+    const appointmentIds = new Set();
     if (customerIds.size) {
-      const os = unwrap(await CDB.from("work_orders").select("id").or("customer_id.in.("+[...customerIds].join(",")+"),motorcycle_id.in.("+[...motoIds].join(",")+")"),"Buscar órdenes relacionadas");
+      const os = unwrap(await CDB.from("work_orders").select("id").in("customer_id",[...customerIds]),"Buscar órdenes del cliente");
       os.forEach(x=>orderIds.add(x.id));
       const inv = unwrap(await CDB.from("invoices").select("id").in("customer_id",[...customerIds]),"Buscar facturas relacionadas");
       inv.forEach(x=>invoiceIds.add(x.id));
+      const aps = unwrap(await CDB.from("appointments").select("id").in("customer_id",[...customerIds]),"Buscar citas del cliente");
+      aps.forEach(x=>appointmentIds.add(x.id));
+    }
+    if (motoIds.size) {
+      const os = unwrap(await CDB.from("work_orders").select("id").in("motorcycle_id",[...motoIds]),"Buscar órdenes de las motos");
+      os.forEach(x=>orderIds.add(x.id));
+      const aps = unwrap(await CDB.from("appointments").select("id").in("motorcycle_id",[...motoIds]),"Buscar citas de las motos");
+      aps.forEach(x=>appointmentIds.add(x.id));
     }
     if (orderIds.size) {
       const inv = unwrap(await CDB.from("invoices").select("id").in("work_order_id",[...orderIds]),"Buscar facturas de órdenes");
@@ -387,7 +396,7 @@ async function api(accion, d) {
     }
     if (orderIds.size) {
       unwrap(await CDB.from("work_order_items").delete().in("work_order_id",[...orderIds]),"Eliminar trabajos");
-      unwrap(await CDB.from("appointments").delete().in("motorcycle_id",[...motoIds]),"Eliminar citas");
+      if (appointmentIds.size) unwrap(await CDB.from("appointments").delete().in("id",[...appointmentIds]),"Eliminar citas");
       unwrap(await CDB.from("work_orders").delete().in("id",[...orderIds]),"Eliminar órdenes");
     }
     if (motoIds.size) unwrap(await CDB.from("motorcycles").delete().in("id",[...motoIds]),"Eliminar motos");
@@ -560,6 +569,9 @@ function pintarOrdenes() {
     return '<div class="card cab2"><div><span class="placa">'+esc(o.placa)+'</span> <b>'+esc(o.marca)+' '+esc(o.modelo)+'</b><div class="mut">'+esc(o.cliente_nombre)+' · '+fechaCorta(o.ingreso)+' · '+esc(o.estado)+'</div><div class="mut">'+esc(o.motivo||"Sin motivo reportado")+'</div><div class="mut">'+done+'/'+(o.trabajos||[]).length+' trabajos marcados como realizados</div></div><div class="bt">'+actions+'</div></div>';
   }).join(""):'<div class="card vacio">Aún no hay órdenes para esta búsqueda.</div>';
 }
+function vClientes() {
+  return '<div class="cab"><h1>Clientes y motos</h1><button class="btn" onclick="abrirOrden()">+ Recibir motocicleta</button></div><p class="mut">Consulta las órdenes, los trabajos realizados y las evidencias de cada motocicleta.</p><input id="q-cli" placeholder="Buscar por placa, nombre o teléfono" value="'+esc(qCli)+'" oninput="qCli=this.value;pintarClientes()"><div class="mt" id="lista-cli"></div>';
+}
 function vAgenda() {
   return '<div class="cab"><h1>Agenda de citas</h1><button class="btn" onclick="abrirCita()">+ Agendar cita</button></div><p class="mut">Programa clientes para diagnóstico, programación ECU, reprogramación, alarmas y otros servicios.</p><div class="g2"><div><label>Ver fecha</label><input type="date" value="'+esc(AGENDA_FECHA)+'" onchange="AGENDA_FECHA=this.value;pintarAgenda()"></div><div style="display:flex;align-items:end"><button class="btn sec" onclick="AGENDA_FECHA=hoyISO();pintarAgenda()">Hoy</button></div></div><div id="agenda-lista" class="mt"></div>';
 }
@@ -682,6 +694,12 @@ window.paginasEvidenciasFactura = async function(f) {
   return canvases;
 };
 
+function abrirFacturaOrden(id) {
+  if(!esAdmin()) { toast("La facturación está disponible solo para administradores."); return; }
+  const f=S.facturas.find(x=>x.id===id);
+  if(f){cerrarModal(true);abrirFactura(f);}else toast("No se encontró la factura.");
+}
+function irNueva() { toast("Las facturas se generan desde una orden finalizada."); }
 function toastTeamError(e){toast(e.message||"Ocurrió un error.");}
 document.addEventListener("visibilitychange",async()=>{
   if(document.hidden||!ACTIVA||$("#modal-root").innerHTML)return;
