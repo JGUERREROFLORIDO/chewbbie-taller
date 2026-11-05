@@ -431,7 +431,9 @@ async function entrar(ev) {
       }
     });
     if (result.error) throw result.error;
-    $("#lg-hint").textContent = "Enviamos un enlace a " + email + ". Abre ese correo y pulsa el enlace para entrar. No necesitas contraseña.";
+    $("#lg-hint").textContent = "Enviamos el acceso a " + email + ". Abre el enlace del correo; si recibes un código de 6 dígitos, también puedes escribirlo aquí. No necesitas contraseña.";
+    $("#lg-code-wrap").classList.remove("hidden");
+    $("#lg-verify").classList.remove("hidden");
     $("#lg-resend").classList.remove("hidden");
     $("#lg-change").classList.remove("hidden");
     button.textContent = "Enviar otro enlace";
@@ -453,7 +455,21 @@ async function reenviarCodigo() {
   });
   $("#lg-err").textContent = r.error ? r.error.message : "Enviamos otro enlace a tu correo.";
 }
+async function verificarCodigo() {
+  const email=$("#lg-email").value.trim().toLowerCase();
+  const token=$("#lg-code").value.trim();
+  $("#lg-err").textContent="";
+  if(!/^\d{6}$/.test(token)){ $("#lg-err").textContent="Escribe el código de 6 dígitos."; return; }
+  try{
+    const result=await SUPA.auth.verifyOtp({email,token,type:"email"});
+    if(result.error) throw result.error;
+    await entrarApp();
+  }catch(e){$("#lg-err").textContent=e.message||"No se pudo verificar el código.";}
+}
 function reiniciarAcceso() {
+  $("#lg-code-wrap").classList.add("hidden");
+  $("#lg-verify").classList.add("hidden");
+  $("#lg-code").value="";
   $("#lg-resend").classList.add("hidden");
   $("#lg-change").classList.add("hidden");
   $("#lg-hint").textContent = "Escribe tu correo autorizado. Te enviaremos un enlace para entrar.";
