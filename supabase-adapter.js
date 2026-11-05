@@ -124,7 +124,7 @@ async function cargarSnapshot(extra) {
     const customer = customerById[f.customer_id] || {};
     const its = invoiceItemsByInvoice[f.id] || [];
     return {
-      id:f.id, numero:Number(String(f.invoice_number||"").match(/(\\d+)$/)?.[1] || order.order_number || 0),
+      id:f.id, numero:Number(String(f.invoice_number||"").match(/(\d+)$/)?.[1] || order.order_number || 0),
       fecha:toIsoDate(f.issued_at), moto_id:f.work_order_id, cliente_id:f.customer_id,
       placa:moto.plate || "", marca:moto.make || "", modelo:moto.model || "",
       cliente_nombre:customer.full_name || "", cliente_telefono:customer.phone || "",
@@ -421,7 +421,7 @@ async function entrar(ev) {
       button.textContent = "Verificar código";
     } else {
       const code = $("#lg-code").value.trim();
-      if (!/^\\d{6}$/.test(code)) throw new Error("Escribe el código de 6 dígitos que llegó a tu correo.");
+      if (!/^\d{6}$/.test(code)) throw new Error("Escribe el código de 6 dígitos que llegó a tu correo.");
       const result = await SUPA.auth.verifyOtp({email,token:code,type:"email"});
       if (result.error) throw result.error;
       OTP_ENVIADO = false;
@@ -508,7 +508,7 @@ const MENU_CHEWBBIE = [
 ];
 function pintarMenus() {
   const allowed = MENU_CHEWBBIE.filter(x=>esAdmin() || !["historial","equipo","config"].includes(x[0]));
-  const html = allowed.map(x=>'<button class="'+(x[0]===vista?'on':'')+'" onclick="ir(\\''+x[0]+'\\')"><svg class="ico" viewBox="0 0 24 24"><path d="'+x[2]+'"/></svg><span>'+x[1]+'</span></button>').join("");
+  const html = allowed.map(x=>'<button class="'+(x[0]===vista?'on':'')+'" onclick="ir(\''+x[0]+'\')"><svg class="ico" viewBox="0 0 24 24"><path d="'+x[2]+'"/></svg><span>'+x[1]+'</span></button>').join("");
   $("#menu-side").innerHTML = html;
   $("#menu-bottom").innerHTML = html;
 }
@@ -535,9 +535,9 @@ function vInicio() {
   const todayAppointments = S.citas.filter(c=>String(c.scheduled_at).slice(0,10)===today && c.status!=="cancelled").length;
   const cards = '<div class="g3">'+stat("Órdenes activas",pending)+stat("Citas de hoy",todayAppointments)+stat("Clientes registrados",S.clientes.length)+'</div>';
   const next = S.citas.filter(c=>new Date(c.scheduled_at)>=new Date() && c.status!=="cancelled").sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at)).slice(0,5);
-  const appt = '<div class="card"><h2>Próximas citas</h2>'+(next.length?next.map(c=>'<div class="fila" onclick="ir(\\'agenda\\')"><div><b>'+esc(c.customer_name)+'</b><div class="mut">'+new Date(c.scheduled_at).toLocaleString("es-CO")+' · '+esc(c.reason)+'</div></div><span class="badge">'+esc(c.status)+'</span></div>').join(""):'<p class="mut">No hay citas próximas.</p>')+'</div>';
-  const latest = S.ordenes.slice(0,5).map(o=>'<div class="fila" onclick="abrirOrden(\\''+o.id+'\\')"><div><b><span class="placa sm">'+esc(o.placa)+'</span> '+esc(o.cliente_nombre)+'</b><div class="mut">'+esc(o.marca)+' '+esc(o.modelo)+' · '+fechaCorta(o.ingreso)+'</div></div><span>'+esc(o.estado)+'</span></div>').join("");
-  const inv = esAdmin() ? '<div class="card"><h2>Facturación</h2><div class="g2">'+stat("Facturas",S.facturas.length)+stat("Total acumulado",pesos(sumar(S.facturas,"total")))+'</div><button class="btn sec sm" onclick="ir(\\'historial\\')">Ver historial de facturas</button></div>' : "";
+  const appt = '<div class="card"><h2>Próximas citas</h2>'+(next.length?next.map(c=>'<div class="fila" onclick="ir(\'agenda\')"><div><b>'+esc(c.customer_name)+'</b><div class="mut">'+new Date(c.scheduled_at).toLocaleString("es-CO")+' · '+esc(c.reason)+'</div></div><span class="badge">'+esc(c.status)+'</span></div>').join(""):'<p class="mut">No hay citas próximas.</p>')+'</div>';
+  const latest = S.ordenes.slice(0,5).map(o=>'<div class="fila" onclick="abrirOrden(\''+o.id+'\')"><div><b><span class="placa sm">'+esc(o.placa)+'</span> '+esc(o.cliente_nombre)+'</b><div class="mut">'+esc(o.marca)+' '+esc(o.modelo)+' · '+fechaCorta(o.ingreso)+'</div></div><span>'+esc(o.estado)+'</span></div>').join("");
+  const inv = esAdmin() ? '<div class="card"><h2>Facturación</h2><div class="g2">'+stat("Facturas",S.facturas.length)+stat("Total acumulado",pesos(sumar(S.facturas,"total")))+'</div><button class="btn sec sm" onclick="ir(\'historial\')">Ver historial de facturas</button></div>' : "";
   return '<div class="cab"><h1>Inicio</h1><button class="btn" onclick="abrirOrden()">+ Recibir motocicleta</button></div>'+cards+appt+'<div class="card"><h2>Órdenes recientes</h2>'+(latest||'<p class="mut">Todavía no hay órdenes.</p>')+'</div>'+inv;
 }
 function vOrdenes() {
@@ -549,10 +549,10 @@ function pintarOrdenes() {
   const rows=S.ordenes.filter(o=>(o.placa+" "+o.cliente_nombre+" "+o.marca+" "+o.modelo).toLowerCase().includes(f));
   box.innerHTML=rows.length?rows.map(o=>{
     const done=(o.trabajos||[]).filter(t=>t.hecho).length;
-    const actions='<button class="btn sec sm" onclick="abrirOrden(\\''+o.id+'\\')">'+(o.factura_id?"Ver orden":"Continuar")+'</button>'+
-      (esAdmin()&&o.factura_id&&o.factura_id!=="__facturada__"?'<button class="btn sm" onclick="abrirFacturaOrden(\\''+o.factura_id+'\\')">Ver factura</button>':"")+
-      (esAdmin()&&!o.factura_id&&o.estado==="Finalizada"?'<button class="btn sm" onclick="facturarDesdeLista(\\''+o.id+'\\')">Generar factura</button>':"")+
-      (esAdmin()?'<button class="btn red sm" onclick="eliminarUnaOrden(\\''+o.id+'\\')">Eliminar</button>':"");
+    const actions='<button class="btn sec sm" onclick="abrirOrden(\''+o.id+'\')">'+(o.factura_id?"Ver orden":"Continuar")+'</button>'+
+      (esAdmin()&&o.factura_id&&o.factura_id!=="__facturada__"?'<button class="btn sm" onclick="abrirFacturaOrden(\''+o.factura_id+'\')">Ver factura</button>':"")+
+      (esAdmin()&&!o.factura_id&&o.estado==="Finalizada"?'<button class="btn sm" onclick="facturarDesdeLista(\''+o.id+'\')">Generar factura</button>':"")+
+      (esAdmin()?'<button class="btn red sm" onclick="eliminarUnaOrden(\''+o.id+'\')">Eliminar</button>':"");
     return '<div class="card cab2"><div><span class="placa">'+esc(o.placa)+'</span> <b>'+esc(o.marca)+' '+esc(o.modelo)+'</b><div class="mut">'+esc(o.cliente_nombre)+' · '+fechaCorta(o.ingreso)+' · '+esc(o.estado)+'</div><div class="mut">'+esc(o.motivo||"Sin motivo reportado")+'</div><div class="mut">'+done+'/'+(o.trabajos||[]).length+' trabajos marcados como realizados</div></div><div class="bt">'+actions+'</div></div>';
   }).join(""):'<div class="card vacio">Aún no hay órdenes para esta búsqueda.</div>';
 }
@@ -566,7 +566,7 @@ function pintarAgenda() {
     const date=new Date(c.scheduled_at);
     const statusLabel=({scheduled:"Programada",confirmed:"Confirmada",arrived:"En el taller",completed:"Atendida",cancelled:"Cancelada",no_show:"No asistió"})[c.status]||c.status;
     const worker=S.equipo.find(x=>x.user_id===c.assigned_to);
-    return '<div class="card cab2"><div><div class="nom">'+date.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})+' · '+esc(c.customer_name)+'</div><div class="mut">'+esc(c.customer_phone||"Sin teléfono")+' · '+Number(c.estimated_minutes||60)+' min</div><div>'+esc(c.reason)+'</div><div class="mut">'+(worker?'Responsable: '+esc(worker.full_name):"Sin responsable asignado")+' · '+statusLabel+'</div></div><div class="bt"><button class="btn sec sm" onclick="abrirCita(\\''+c.id+'\\')">Editar</button>'+(c.status!=="confirmed"&&c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sm" onclick="cambiarEstadoCita(\\''+c.id+'\\',\\'confirmed\\')">Confirmar</button>':"")+(c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sec sm" onclick="cambiarEstadoCita(\\''+c.id+'\\',\\'completed\\')">Atendida</button>':"")+(c.status!=="cancelled"&&c.status!=="completed"?'<button class="btn red sm" onclick="cambiarEstadoCita(\\''+c.id+'\\',\\'cancelled\\')">Cancelar</button>':"")+'</div></div>';
+    return '<div class="card cab2"><div><div class="nom">'+date.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})+' · '+esc(c.customer_name)+'</div><div class="mut">'+esc(c.customer_phone||"Sin teléfono")+' · '+Number(c.estimated_minutes||60)+' min</div><div>'+esc(c.reason)+'</div><div class="mut">'+(worker?'Responsable: '+esc(worker.full_name):"Sin responsable asignado")+' · '+statusLabel+'</div></div><div class="bt"><button class="btn sec sm" onclick="abrirCita(\''+c.id+'\')">Editar</button>'+(c.status!=="confirmed"&&c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'confirmed\')">Confirmar</button>':"")+(c.status!=="completed"&&c.status!=="cancelled"?'<button class="btn sec sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'completed\')">Atendida</button>':"")+(c.status!=="cancelled"&&c.status!=="completed"?'<button class="btn red sm" onclick="cambiarEstadoCita(\''+c.id+'\',\'cancelled\')">Cancelar</button>':"")+'</div></div>';
   }).join(""):'<div class="card vacio">No hay citas para esta fecha.</div>';
 }
 function abrirCita(id) {
@@ -603,7 +603,7 @@ function vEquipo() {
 }
 function pintarEquipo() {
   const box=$("#equipo-lista"); if(!box)return;
-  box.innerHTML=S.equipo.length?S.equipo.map(x=>'<div class="card cab2"><div><div class="nom">'+esc(x.full_name)+'</div><div class="mut">'+esc(x.email)+'</div><div class="mut">'+(x.active?'Activo':'Acceso desactivado')+' · '+(x.role==="admin"?"Administrador":"Trabajador")+'</div></div><div class="bt"><select aria-label="Permiso de '+esc(x.full_name)+'" onchange="actualizarMiembro(\\''+x.user_id+'\\',{role:this.value})"><option value="worker" '+(x.role==="worker"?"selected":"")+'>Trabajador</option><option value="admin" '+(x.role==="admin"?"selected":"")+'>Administrador</option></select><button class="btn '+(x.active?'red':'sec')+' sm" onclick="actualizarMiembro(\\''+x.user_id+'\\',{active:'+(!x.active)+ '})">'+(x.active?'Desactivar':'Activar')+'</button></div></div>').join(""):'<div class="card vacio">Todavía no hay personas agregadas.</div>';
+  box.innerHTML=S.equipo.length?S.equipo.map(x=>'<div class="card cab2"><div><div class="nom">'+esc(x.full_name)+'</div><div class="mut">'+esc(x.email)+'</div><div class="mut">'+(x.active?'Activo':'Acceso desactivado')+' · '+(x.role==="admin"?"Administrador":"Trabajador")+'</div></div><div class="bt"><select aria-label="Permiso de '+esc(x.full_name)+'" onchange="actualizarMiembro(\''+x.user_id+'\',{role:this.value})"><option value="worker" '+(x.role==="worker"?"selected":"")+'>Trabajador</option><option value="admin" '+(x.role==="admin"?"selected":"")+'>Administrador</option></select><button class="btn '+(x.active?'red':'sec')+' sm" onclick="actualizarMiembro(\''+x.user_id+'\',{active:'+(!x.active)+ '})">'+(x.active?'Desactivar':'Activar')+'</button></div></div>').join(""):'<div class="card vacio">Todavía no hay personas agregadas.</div>';
 }
 function abrirNuevoMiembro() {
   abrirModal("Agregar persona al equipo",'<div class="sub"><label>Nombre completo *</label><input id="eq-nombre" placeholder="Nombre de la persona"><label>Correo electrónico *</label><input id="eq-email" type="email" placeholder="persona@correo.com"><label>Permiso</label><select id="eq-rol"><option value="worker">Trabajador</option><option value="admin">Administrador</option></select><p class="mut">La persona no tendrá que crear una contraseña. Su correo quedará autorizado y podrá solicitar un código de acceso.</p><p class="err" id="eq-error"></p><div class="acc"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarMiembro()">Agregar al equipo</button></div></div>');
@@ -621,7 +621,7 @@ async function actualizarMiembro(user_id,patch) {
 }
 function tarjetaCliente(c) {
   const ms=motosDe(c.id);
-  return '<div class="card"><div class="cab2"><div><div class="nom">'+esc(c.nombre)+'</div><div class="mut">'+esc(c.telefono)||'Sin teléfono'+'</div></div><div class="bt"><button class="btn sec sm" onclick="modalCliente(\\''+c.id+'\\')">Editar</button><button class="btn sec sm" onclick="modalMoto(\\''+c.id+'\\')">+ Moto</button>'+(esAdmin()?'<button class="btn red sm" onclick="eliminarCliente(\\''+c.id+'\\')">Eliminar</button>':"")+'</div></div>'+(ms.length?ms.map(bloqueMoto).join(""):'<p class="mut">Sin motos registradas.</p>')+'</div>';
+  return '<div class="card"><div class="cab2"><div><div class="nom">'+esc(c.nombre)+'</div><div class="mut">'+esc(c.telefono)||'Sin teléfono'+'</div></div><div class="bt"><button class="btn sec sm" onclick="modalCliente(\''+c.id+'\')">Editar</button><button class="btn sec sm" onclick="modalMoto(\''+c.id+'\')">+ Moto</button>'+(esAdmin()?'<button class="btn red sm" onclick="eliminarCliente(\''+c.id+'\')">Eliminar</button>':"")+'</div></div>'+(ms.length?ms.map(bloqueMoto).join(""):'<p class="mut">Sin motos registradas.</p>')+'</div>';
 }
 function bloqueMoto(m) {
   const placa=limpiarPlaca(m.placa), abierta=ABIERTAS.has(placa);
@@ -630,9 +630,9 @@ function bloqueMoto(m) {
   const detail=abierta?'<div class="serv" style="padding:12px"><h2>Órdenes de trabajo ('+orders.length+')</h2>'+(orders.map(o=>{
     const done=(o.trabajos||[]).filter(t=>t.hecho);
     const pending=(o.trabajos||[]).filter(t=>!t.hecho);
-    return '<div class="card" style="margin:10px 0;padding:12px"><div class="cab2"><div><b>Orden '+fechaCorta(o.ingreso)+'</b> · '+esc(o.estado)+'<div class="mut">'+esc(o.motivo||"Sin motivo reportado")+'</div></div><button class="btn sec sm" onclick="abrirOrden(\\''+o.id+'\\')">Ver orden y fotos ('+S.evidencias.filter(p=>p.orden_id===o.id).length+')</button></div>'+(done.length?'<div class="mut mt"><b>Trabajos realizados</b></div>'+done.map(t=>'<div class="fl"><span>'+esc(t.descripcion)+' <small class="mut">· '+esc(t.performed_by_name||"Responsable no indicado")+'</small></span><span>'+pesos(t.precio)+'</span></div>').join(""):'<div class="mut mt">Sin trabajos marcados como realizados.</div>')+(pending.length?'<div class="mut mt">Pendientes: '+esc(pending.map(t=>t.descripcion).join(", "))+'</div>':"")+(o.factura_id&&esAdmin()?'<button class="btn sm mt" onclick="abrirFacturaOrden(\\''+o.factura_id+'\\')">Ver factura</button>':(!o.factura_id&&o.estado==="Finalizada"&&esAdmin()?'<button class="btn sm mt" onclick="facturarDesdeLista(\\''+o.id+'\\')">Generar factura</button>':""))+'</div>';
-  }).join("")||'<p class="mut">Sin órdenes para esta placa.</p>')+'<h2 class="mt">Facturas anteriores ('+invoices.length+')</h2>'+(invoices.map(f=>'<div class="fila" onclick="verFactura(\\''+f.id+'\\')"><div><b>Factura #'+num4(f.numero)+'</b> · '+fechaCorta(f.fecha)+'</div><span class="monto">'+pesos(f.total)+'</span></div>').join("")||'<p class="mut">Todavía no hay facturas.</p>')+'</div>':"";
-  return '<div class="moto"><div class="cab2"><div><span class="placa">'+esc(placa)+'</span> <b>'+esc(m.marca)+' '+esc(m.modelo)+'</b><div class="mut">'+orders.length+' órdenes · '+invoices.length+' facturas</div></div><div class="bt"><button class="btn sec sm" onclick="alternarServicios(\\''+esc(placa)+'\\')">'+(abierta?'Ocultar historial':'Ver historial')+'</button><button class="btn sm" onclick="abrirOrdenParaPlaca(\\''+esc(placa)+'\\')">+ Orden</button><button class="btn sec sm" onclick="modalMoto(\\''+m.cliente_id+'\\',\\''+m.id+'\\')">Editar</button>'+(esAdmin()?'<button class="btn red sm" onclick="eliminarMoto(\\''+m.id+'\\')">Eliminar</button>':"")+'</div></div>'+detail+'</div>';
+    return '<div class="card" style="margin:10px 0;padding:12px"><div class="cab2"><div><b>Orden '+fechaCorta(o.ingreso)+'</b> · '+esc(o.estado)+'<div class="mut">'+esc(o.motivo||"Sin motivo reportado")+'</div></div><button class="btn sec sm" onclick="abrirOrden(\''+o.id+'\')">Ver orden y fotos ('+S.evidencias.filter(p=>p.orden_id===o.id).length+')</button></div>'+(done.length?'<div class="mut mt"><b>Trabajos realizados</b></div>'+done.map(t=>'<div class="fl"><span>'+esc(t.descripcion)+' <small class="mut">· '+esc(t.performed_by_name||"Responsable no indicado")+'</small></span><span>'+pesos(t.precio)+'</span></div>').join(""):'<div class="mut mt">Sin trabajos marcados como realizados.</div>')+(pending.length?'<div class="mut mt">Pendientes: '+esc(pending.map(t=>t.descripcion).join(", "))+'</div>':"")+(o.factura_id&&esAdmin()?'<button class="btn sm mt" onclick="abrirFacturaOrden(\''+o.factura_id+'\')">Ver factura</button>':(!o.factura_id&&o.estado==="Finalizada"&&esAdmin()?'<button class="btn sm mt" onclick="facturarDesdeLista(\''+o.id+'\')">Generar factura</button>':""))+'</div>';
+  }).join("")||'<p class="mut">Sin órdenes para esta placa.</p>')+'<h2 class="mt">Facturas anteriores ('+invoices.length+')</h2>'+(invoices.map(f=>'<div class="fila" onclick="verFactura(\''+f.id+'\')"><div><b>Factura #'+num4(f.numero)+'</b> · '+fechaCorta(f.fecha)+'</div><span class="monto">'+pesos(f.total)+'</span></div>').join("")||'<p class="mut">Todavía no hay facturas.</p>')+'</div>':"";
+  return '<div class="moto"><div class="cab2"><div><span class="placa">'+esc(placa)+'</span> <b>'+esc(m.marca)+' '+esc(m.modelo)+'</b><div class="mut">'+orders.length+' órdenes · '+invoices.length+' facturas</div></div><div class="bt"><button class="btn sec sm" onclick="alternarServicios(\''+esc(placa)+'\')">'+(abierta?'Ocultar historial':'Ver historial')+'</button><button class="btn sm" onclick="abrirOrdenParaPlaca(\''+esc(placa)+'\')">+ Orden</button><button class="btn sec sm" onclick="modalMoto(\''+m.cliente_id+'\',\''+m.id+'\')">Editar</button>'+(esAdmin()?'<button class="btn red sm" onclick="eliminarMoto(\''+m.id+'\')">Eliminar</button>':"")+'</div></div>'+detail+'</div>';
 }
 function lineaOrdenTrabajo(i,t,read) {
   const who=t.hecho ? ('Realizado por: '+(t.performed_by_name||"Responsable registrado")) : "Pendiente";
