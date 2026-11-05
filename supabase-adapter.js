@@ -350,7 +350,7 @@ async function api(accion, d) {
     unwrap(await CDB.from("appointments").update({status:d.status,updated_by:user.id,updated_at:now}).eq("id",d.id), "Actualizar estado de cita");
   } else if (accion === "teamCreate") {
     exigirAdmin();
-    const result = await SUPA.functions.invoke("chewbbie-team-admin",{body:{action:"create",email:d.email,password:d.password,full_name:d.full_name,role:d.role}});
+    const result = await SUPA.functions.invoke("chewbbie-team-admin",{body:{action:"create",email:d.email,full_name:d.full_name,role:d.role}});
     if (result.error) throw new Error(result.data?.error || result.error.message);
     if (result.data?.error) throw new Error(result.data.error);
     extra = {miembro:result.data?.user || null};
@@ -586,19 +586,19 @@ async function cambiarEstadoCita(id,status) {
 }
 function vEquipo() {
   if(!esAdmin()) return '<div class="card vacio">Solo los administradores pueden gestionar el equipo.</div>';
-  return '<div class="cab"><h1>Equipo de trabajo</h1><button class="btn" onclick="abrirNuevoMiembro()">+ Agregar persona</button></div><p class="mut">Agrega a cada persona con su correo, una contraseña inicial y el permiso que tendrá.</p><div id="equipo-lista"></div>';
+  return '<div class="cab"><h1>Equipo de trabajo</h1><button class="btn" onclick="abrirNuevoMiembro()">+ Agregar persona</button></div><p class="mut">Agrega a cada persona con su correo y define su permiso. Después de crearla, un administrador debe asignarle su contraseña desde Supabase.</p><div id="equipo-lista"></div>';
 }
 function pintarEquipo() {
   const box=$("#equipo-lista"); if(!box)return;
   box.innerHTML=S.equipo.length?S.equipo.map(x=>'<div class="card cab2"><div><div class="nom">'+esc(x.full_name)+'</div><div class="mut">'+esc(x.email)+'</div><div class="mut">'+(x.active?'Activo':'Acceso desactivado')+' · '+(x.role==="admin"?"Administrador":"Trabajador")+'</div></div><div class="bt"><select aria-label="Permiso de '+esc(x.full_name)+'" onchange="actualizarMiembro(\''+x.user_id+'\',{role:this.value})"><option value="worker" '+(x.role==="worker"?"selected":"")+'>Trabajador</option><option value="admin" '+(x.role==="admin"?"selected":"")+'>Administrador</option></select><button class="btn '+(x.active?'red':'sec')+' sm" onclick="actualizarMiembro(\''+x.user_id+'\',{active:'+(!x.active)+ '})">'+(x.active?'Desactivar':'Activar')+'</button></div></div>').join(""):'<div class="card vacio">Todavía no hay personas agregadas.</div>';
 }
 function abrirNuevoMiembro() {
-  abrirModal("Agregar persona al equipo",'<div class="sub"><label>Nombre completo *</label><input id="eq-nombre" placeholder="Nombre de la persona"><label>Correo electrónico *</label><input id="eq-email" type="email" placeholder="persona@correo.com"><label>Contraseña inicial *</label><input id="eq-password" type="password" autocomplete="new-password" minlength="8" placeholder="Mínimo 8 caracteres"><label>Permiso</label><select id="eq-rol"><option value="worker">Trabajador</option><option value="admin">Administrador</option></select><p class="mut">Comparte la contraseña inicial de forma privada con esa persona.</p><p class="err" id="eq-error"></p><div class="acc"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarMiembro()">Agregar al equipo</button></div></div>');
+  abrirModal("Agregar persona al equipo",'<div class="sub"><label>Nombre completo *</label><input id="eq-nombre" placeholder="Nombre de la persona"><label>Correo electrónico *</label><input id="eq-email" type="email" placeholder="persona@correo.com"><label>Permiso</label><select id="eq-rol"><option value="worker">Trabajador</option><option value="admin">Administrador</option></select><p class="err" id="eq-error"></p><div class="acc"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarMiembro()">Agregar al equipo</button></div></div>');
 }
 async function guardarMiembro() {
   const error=$("#eq-error");
   try {
-    await escribir("teamCreate",{full_name:$("#eq-nombre").value.trim(),email:$("#eq-email").value.trim(),password:$("#eq-password").value,role:$("#eq-rol").value});
+    await escribir("teamCreate",{full_name:$("#eq-nombre").value.trim(),email:$("#eq-email").value.trim(),role:$("#eq-rol").value});
     cerrarModal(); render(); toast("Persona agregada. Ya puede entrar con su correo.");
   } catch(e){error.textContent=e.message||"No se pudo agregar la persona.";}
 }
