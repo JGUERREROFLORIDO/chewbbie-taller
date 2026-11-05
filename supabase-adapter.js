@@ -11,8 +11,6 @@ S.equipo = [];
 S.rol = "";
 S.usuario_id = "";
 S.email = "";
-let OTP_ENVIADO = false;
-let EMAIL_OTP = "";
 let CITA_ACTUAL = null;
 let AGENDA_FECHA = hoyISO();
 
@@ -641,7 +639,7 @@ async function cambiarEstadoCita(id,status) {
 }
 function vEquipo() {
   if(!esAdmin()) return '<div class="card vacio">Solo los administradores pueden gestionar el equipo.</div>';
-  return '<div class="cab"><h1>Equipo de trabajo</h1><button class="btn" onclick="abrirNuevoMiembro()">+ Agregar persona</button></div><p class="mut">Agrega a cada persona con su correo y define su permiso. Después de crearla, un administrador debe asignarle su contraseña desde Supabase.</p><div id="equipo-lista"></div>';
+  return '<div class="cab"><h1>Equipo de trabajo</h1><button class="btn" onclick="abrirNuevoMiembro()">+ Agregar persona</button></div><p class="mut">Agrega a cada persona con su correo y define su permiso. La primera vez, cada persona configurará su contraseña con un código de verificación.</p><div id="equipo-lista"></div>';
 }
 function pintarEquipo() {
   const box=$("#equipo-lista"); if(!box)return;
@@ -654,7 +652,7 @@ async function guardarMiembro() {
   const error=$("#eq-error");
   try {
     await escribir("teamCreate",{full_name:$("#eq-nombre").value.trim(),email:$("#eq-email").value.trim(),role:$("#eq-rol").value});
-    cerrarModal(); render(); toast("Persona agregada. Ya puede entrar con su correo.");
+    cerrarModal(); render(); toast("Persona agregada. En su primer acceso deberá configurar su contraseña con el código de verificación.");
   } catch(e){error.textContent=e.message||"No se pudo agregar la persona.";}
 }
 async function actualizarMiembro(user_id,patch) {
