@@ -170,16 +170,6 @@ input:disabled{background:#f3f4f6;color:#6b7280}
     <p class="mut" id="lg-hint">Ingresa con tu cuenta autorizada del taller.</p>
     <p class="err" id="lg-err"></p>
     <button class="btn" id="lg-btn" type="submit">Entrar</button>
-    <button class="btn sec sm" type="button" onclick="mostrarConfiguracionPassword()">¿Primera vez? Crear contraseña</button>
-    <div id="lg-setup" class="hidden">
-      <p class="mut">Solo necesitas hacer esto una vez. Te enviaremos un código de 6 dígitos; no necesitas abrir el enlace.</p>
-      <button class="btn sec sm" id="lg-send-code" type="button" onclick="solicitarCodigoPassword()">Enviar código a mi correo</button>
-      <div><label for="lg-code">Código de 6 dígitos</label><input id="lg-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Código recibido"></div>
-      <div><label for="lg-new-password">Nueva contraseña</label><input id="lg-new-password" type="password" autocomplete="new-password" minlength="8" placeholder="Mínimo 8 caracteres"></div>
-      <div><label for="lg-confirm-password">Confirmar contraseña</label><input id="lg-confirm-password" type="password" autocomplete="new-password" minlength="8" placeholder="Repite la contraseña"></div>
-      <button class="btn" type="button" onclick="guardarPasswordConCodigo()">Verificar código y guardar contraseña</button>
-      <button class="btn sec sm" type="button" onclick="cancelarConfiguracionPassword()">Volver al inicio de sesión</button>
-    </div>
   </form>
 </div>
 
