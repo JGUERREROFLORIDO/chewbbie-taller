@@ -415,6 +415,8 @@ async function entrar(ev) {
       OTP_ENVIADO = true;
       EMAIL_OTP = email;
       $("#lg-code-wrap").classList.remove("hidden");
+      $("#lg-resend").classList.remove("hidden");
+      $("#lg-change").classList.remove("hidden");
       $("#lg-code").value = "";
       $("#lg-code").focus();
       $("#lg-hint").textContent = "Te enviamos un código de acceso a " + email + ". Escríbelo aquí; no necesitas contraseña.";
@@ -447,6 +449,8 @@ function reiniciarAcceso() {
   OTP_ENVIADO = false;
   EMAIL_OTP = "";
   $("#lg-code-wrap").classList.add("hidden");
+  $("#lg-resend").classList.add("hidden");
+  $("#lg-change").classList.add("hidden");
   $("#lg-code").value = "";
   $("#lg-hint").textContent = "Escribe tu correo autorizado. Te enviaremos un código de acceso.";
   $("#lg-btn").textContent = "Enviar código de acceso";
@@ -652,7 +656,10 @@ window.mostrarOrden = function() {
   const title = document.querySelector("#modal-root .modal h2");
   const note = document.querySelector("#modal-root #ot-fotos")?.parentElement?.querySelector("p.mut");
   if(note) note.textContent="Primero guarda la orden. Las fotos se almacenan en el espacio privado de Chewbbie.";
-  if(!esAdmin()) document.querySelectorAll("#ot-fotos .btn.red").forEach(b=>b.remove());
+  if(!esAdmin()) {
+    document.querySelectorAll("#ot-fotos .btn.red").forEach(b=>b.remove());
+    document.querySelectorAll("#modal-root button").forEach(b=>{if(b.textContent.trim()==="Ver factura")b.remove();});
+  }
 };
 const paginasEvidenciasFacturaOriginal = window.paginasEvidenciasFactura;
 window.paginasEvidenciasFactura = async function(f) {
